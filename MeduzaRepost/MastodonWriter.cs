@@ -50,6 +50,9 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                         {
                             if (db.MessageMaps.AsNoTracking().FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 })
                                 return;
+
+                            if (evt.Message.message is null or "" && evt.Message.flags.HasFlag(Message.Flags.has_grouped_id))
+                                return;
                             
                             string? replyStatusId = null;
                             Attachment? attachment = null;
@@ -121,8 +124,7 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                     }
                 }
             }
-            else
-                await Task.Delay(1000).ConfigureAwait(false);
+            await Task.Delay(1000).ConfigureAwait(false);
         }
     }
 

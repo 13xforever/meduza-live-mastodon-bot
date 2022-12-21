@@ -32,9 +32,28 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         // check and init saved pts value if needed
         channel = ch;
         Log.Info($"Reading channel #{channel.ID}: {channel.Title}");
-        if (db.BotState.FirstOrDefault(s => s.Key == "pts")?.Value is not { Length: > 0 } ptsVal
-            || !int.TryParse(ptsVal, out var savedPts)
-            || savedPts == 0)
+        if (db.BotState.FirstOrDefault(s => s.Key == "pts") is { Value: { Length: > 0 } ptsVal } state
+            && int.TryParse(ptsVal, out var savedPts)
+            && savedPts > 0)
+        {
+            // check missed updates
+            Log.Info("Checking missed channel updates...");
+            var diffPts = savedPts;
+            while (await Client.Updates_GetChannelDifference(channel, null, diffPts).ConfigureAwait(false) is Updates_ChannelDifference diff)
+            {
+                Log.Info($"Got {diff.NewMessages.Length} new messages and {diff.OtherUpdates.Length} other updates, {(diff.Final ? "" : "not ")}final");
+                foreach (var message in diff.NewMessages.OfType<Message>().OrderBy(m => m.Date))
+                    Push(new(TgEventType.Post, message));
+                foreach (var update in diff.OtherUpdates)
+                    await OnUpdate(update).ConfigureAwait(false);
+                diffPts = diff.pts;
+                if (diff.Final)
+                    break;
+            }
+            savedPts = diffPts;
+            state.Value = savedPts.ToString();
+        }
+        else
         {
             Log.Info("No saved pts value, initializing state");
             var dialogs = await Client.Messages_GetPeerDialogs(channel.ToInputPeer()).ConfigureAwait(false);
@@ -47,25 +66,8 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             savedPts = dialog.pts;
             Log.Info($"Got initial pts value: {savedPts}");
             db.BotState.Add(new() { Key = "pts", Value = savedPts.ToString() });
-            await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
         }
-        else
-        {
-            // check missed updates
-            Log.Info("Checking missed channel updates...");
-            var diffPts = savedPts;
-            while(await Client.Updates_GetChannelDifference(channel, null, diffPts).ConfigureAwait(false) is Updates_ChannelDifference diff)
-            {
-                Log.Info($"Got {diff.NewMessages.Length} new messages and {diff.OtherUpdates.Length} other updates, {(diff.Final ? "" : "not ")}final");
-                foreach (var message in diff.NewMessages.OfType<Message>().Reverse())
-                    Push(new(TgEventType.Post, message));
-                foreach (var update in diff.OtherUpdates)
-                    await OnUpdate(update).ConfigureAwait(false);
-                diffPts = diff.pts;
-                if (diff.Final)
-                    break;
-            }
-        }
+        await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
 
         Client.OnUpdate += OnUpdate;
 
