@@ -75,6 +75,20 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                                     Log.Error(e, "Failed to download image");
                                 }
                             }
+                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage {photo: Photo embedImage } })
+                            {
+                                try
+                                {
+                                    await using var memStream = Config.MemoryStreamManager.GetStream();
+                                    await reader.Client.DownloadFileAsync(embedImage, memStream).ConfigureAwait(false);
+                                    memStream.Seek(0, SeekOrigin.Begin);
+                                    attachment = await client.UploadMedia(memStream, embedImage.id.ToString()).ConfigureAwait(false);
+                                }
+                                catch (Exception e)
+                                {
+                                    Log.Error(e, "Failedto download embed preview image");
+                                }
+                            }
 
                             var (title, body) = FormatTitleAndBody(evt.Message, evt.Link);
                             var status = client.PublishStatus(
