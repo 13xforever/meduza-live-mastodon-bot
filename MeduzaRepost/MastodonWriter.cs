@@ -25,7 +25,8 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
     private readonly ConcurrentQueue<TgEvent> events = new();
 
     private TelegramReader reader;
-    private int maxLength, maxAttachments, linkReserved;
+    private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize;
+    private HashSet<string> mimeTypes;
     private bool SupportsMarkdown = false;
     
     public async Task Run(TelegramReader telegramReader)
@@ -37,6 +38,9 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
         maxLength = instance.Configuration.Statutes.MaxCharacters;
         maxAttachments = instance.Configuration.Statutes.MaxMediaAttachments;
         linkReserved = instance.Configuration.Statutes.CharactersReservedPerUrl;
+        mimeTypes = new(instance.Configuration.MediaAttachments.SupportedMimeTypes);
+        maxVideoSize = instance.Configuration.MediaAttachments.VideoSizeLimit;
+        maxImageSize = instance.Configuration.MediaAttachments.ImageSizeLimit;
 
         while (!Config.Cts.IsCancellationRequested)
         {
@@ -56,37 +60,48 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                             
                             string? replyStatusId = null;
                             Attachment? attachment = null;
+                            Photo? srcImg = null;
+                            Document? srcDoc = null;
                             if (evt.Message.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
                             {
                                 if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
                                     replyStatusId = map.MastodonId;
                             }
                             if (evt.Message.media is MessageMediaPhoto { photo: Photo photo })
+                                srcImg = photo;
+                            else if (evt.Message.media is MessageMediaDocument { document: Document doc } && mimeTypes.Contains(doc.mime_type))
+                                srcDoc = doc;
+                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage {photo: Photo embedImage } })
+                                srcImg = embedImage;
+                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage { document: Document embedDoc } } && mimeTypes.Contains(embedDoc.mime_type))
+                                srcDoc = embedDoc;
+                            if (srcImg is not null)
                             {
                                 try
                                 {
                                     await using var memStream = Config.MemoryStreamManager.GetStream();
-                                    await reader.Client.DownloadFileAsync(photo, memStream).ConfigureAwait(false);
+                                    await reader.Client.DownloadFileAsync(srcImg, memStream).ConfigureAwait(false);
                                     memStream.Seek(0, SeekOrigin.Begin);
-                                    attachment = await client.UploadMedia(memStream, photo.id.ToString()).ConfigureAwait(false);
+                                    if (memStream.Length < maxImageSize)
+                                        attachment = await client.UploadMedia(memStream, srcImg.id.ToString()).ConfigureAwait(false);
                                 }
                                 catch (Exception e)
                                 {
-                                    Log.Error(e, "Failed to download image");
+                                    Log.Error(e, "Failedto download image");
                                 }
                             }
-                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage {photo: Photo embedImage } })
+                            else if (srcDoc?.size < maxVideoSize)
                             {
                                 try
                                 {
                                     await using var memStream = Config.MemoryStreamManager.GetStream();
-                                    await reader.Client.DownloadFileAsync(embedImage, memStream).ConfigureAwait(false);
+                                    await reader.Client.DownloadFileAsync(srcDoc, memStream).ConfigureAwait(false);
                                     memStream.Seek(0, SeekOrigin.Begin);
-                                    attachment = await client.UploadMedia(memStream, embedImage.id.ToString()).ConfigureAwait(false);
+                                    attachment = await client.UploadMedia(memStream, srcDoc.Filename ?? srcDoc.id.ToString()).ConfigureAwait(false);
                                 }
                                 catch (Exception e)
                                 {
-                                    Log.Error(e, "Failedto download embed preview image");
+                                    Log.Error(e, $"Failedto download media file of type {srcDoc.mime_type}, {srcDoc.size}");
                                 }
                             }
 
