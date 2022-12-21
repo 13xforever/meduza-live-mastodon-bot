@@ -206,12 +206,10 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
     private (string? title, string body) FormatTitleAndBody(Message message, string? link)
     {
         link ??= $"https://t.me/meduzalive/{message.id}";
-        var text = message.message;
+        var text = message.message.Replace(Junk, "");
         if (message.media is MessageMediaWebPage { webpage: WebPage page })
             text += $"\n\n{page.url}";
-        
         var paragraphs = text
-            .Replace(Junk, "")
             .Replace("\n\n\n\n", "\n\n")
             .Replace("\n\n\n", "\n\n")
             .Split("\n")
