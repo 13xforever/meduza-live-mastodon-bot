@@ -62,6 +62,7 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                             Attachment? attachment = null;
                             Photo? srcImg = null;
                             Document? srcDoc = null;
+                            string? attachmentDescription = null;
                             if (evt.Message.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
                             {
                                 if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
@@ -71,10 +72,14 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 srcImg = photo;
                             else if (evt.Message.media is MessageMediaDocument { document: Document doc } && mimeTypes.Contains(doc.mime_type))
                                 srcDoc = doc;
-                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage {photo: Photo embedImage } })
-                                srcImg = embedImage;
-                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage { document: Document embedDoc } } && mimeTypes.Contains(embedDoc.mime_type))
-                                srcDoc = embedDoc;
+                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage webPage })
+                            {
+                                if (webPage.photo is Photo embedImage)
+                                    srcImg = embedImage;
+                                else if (webPage.document is Document embedDoc && mimeTypes.Contains(embedDoc.mime_type))
+                                    srcDoc = embedDoc;
+                                attachmentDescription = webPage.description;
+                            }
                             if (srcImg is not null)
                             {
                                 try
@@ -83,7 +88,11 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                                     await reader.Client.DownloadFileAsync(srcImg, memStream).ConfigureAwait(false);
                                     memStream.Seek(0, SeekOrigin.Begin);
                                     if (memStream.Length < maxImageSize)
-                                        attachment = await client.UploadMedia(memStream, srcImg.id.ToString()).ConfigureAwait(false);
+                                        attachment = await client.UploadMedia(
+                                            data: memStream,
+                                            fileName: srcImg.id.ToString(),
+                                            description: attachmentDescription
+                                        ).ConfigureAwait(false);
                                 }
                                 catch (Exception e)
                                 {
@@ -97,7 +106,11 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                                     await using var memStream = Config.MemoryStreamManager.GetStream();
                                     await reader.Client.DownloadFileAsync(srcDoc, memStream).ConfigureAwait(false);
                                     memStream.Seek(0, SeekOrigin.Begin);
-                                    attachment = await client.UploadMedia(memStream, srcDoc.Filename ?? srcDoc.id.ToString()).ConfigureAwait(false);
+                                    attachment = await client.UploadMedia(
+                                        data: memStream,
+                                        fileName: srcDoc.Filename ?? srcDoc.id.ToString(),
+                                        description: attachmentDescription
+                                    ).ConfigureAwait(false);
                                 }
                                 catch (Exception e)
                                 {
