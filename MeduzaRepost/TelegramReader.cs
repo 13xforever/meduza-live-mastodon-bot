@@ -52,6 +52,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             }
             savedPts = diffPts;
             state.Value = savedPts.ToString();
+            Log.Info("All missed updates are processed");
         }
         else
         {
@@ -69,6 +70,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         }
         await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
 
+        Log.Info("Listening to live telegram updates...");
         Client.OnUpdate += OnUpdate;
 
         while (!Config.Cts.IsCancellationRequested)
