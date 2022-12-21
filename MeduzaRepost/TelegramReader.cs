@@ -105,6 +105,12 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                     await UpdatePts(u.pts).ConfigureAwait(false);
                     break;
                 }
+                case UpdatePinnedMessages u:
+                {
+                    Push(new(TgEventType.Pin, new(){id=u.messages.Max()}));
+                    await UpdatePts(u.pts).ConfigureAwait(false);
+                    break;
+                }
                 default:
                 {
                     Log.Debug($"Ignoring update of type {update.GetType().Name}");

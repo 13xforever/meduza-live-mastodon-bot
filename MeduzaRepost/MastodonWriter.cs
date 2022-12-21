@@ -107,7 +107,6 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                     case TgEventType.Delete:
                     {
                         if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 } map)
-                        {
                             try
                             {
                                 await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
@@ -119,7 +118,37 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                             {
                                 Log.Warn(e, "Failed to delete status");
                             }
-                        }
+                        break;
+                    }
+                    case TgEventType.Pin:
+                    {
+                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 } map)
+                            try
+                            {
+                                if (db.BotState.FirstOrDefault(s => s.Key == "pin_id") is { Value.Length: > 0 } pinState)
+                                {
+                                    if (pinState.Value == map.MastodonId)
+                                        return;
+                                    
+                                    var pin = await client.Unpin(pinState.Value).ConfigureAwait(false);
+                                    Log.Info($"Unpinned {pin.Url}");
+                                }
+                                else
+                                    pinState = db.BotState.Add(new() { Key = "pin_id", Value = "0" }).Entity;
+                                var status = await client.Pin(map.MastodonId).ConfigureAwait(false);
+                                Log.Info($"Pinned new message {status.Url}");
+                                pinState.Value = status.Id;
+                                await db.SaveChangesAsync().ConfigureAwait(false);
+                            }
+                            catch (Exception e)
+                            {
+                                Log.Warn(e, $"Failed to pin message {map.MastodonId}");
+                            }
+                        break;
+                    }
+                    default:
+                    {
+                        Log.Error($"Unknown event type {evt.Type}");
                         break;
                     }
                 }
