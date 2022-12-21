@@ -52,18 +52,25 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         else
         {
             // check missed updates
-            var diff = await Client.Updates_GetChannelDifference(channel, null, savedPts).ConfigureAwait(false);
-            do
+            Log.Info("Checking missed channel updates...");
+            var diffPts = savedPts;
+            while(await Client.Updates_GetChannelDifference(channel, null, diffPts).ConfigureAwait(false) is Updates_ChannelDifference diff)
             {
-                foreach (var message in diff.NewMessages.OfType<Message>())
+                Log.Info($"Got {diff.NewMessages.Length} new messages and {diff.OtherUpdates.Length} other updates, {(diff.Final ? "" : "not ")}final");
+                foreach (var message in diff.NewMessages.OfType<Message>().Reverse())
                     Push(new(TgEventType.Post, message));
                 foreach (var update in diff.OtherUpdates)
                     await OnUpdate(update).ConfigureAwait(false);
-            } while (!diff.Final);
+                diffPts = diff.pts;
+                if (diff.Final)
+                    break;
+            }
         }
 
         Client.OnUpdate += OnUpdate;
 
+        while (!Config.Cts.IsCancellationRequested)
+            await Task.Delay(200).ConfigureAwait(false);
     }
 
     private async Task OnUpdate(IObject arg)

@@ -2,6 +2,7 @@
 using Mastonet;
 using Mastonet.Entities;
 using MeduzaRepost.Database;
+using Microsoft.EntityFrameworkCore;
 using NLog;
 using TL;
 
@@ -11,7 +12,7 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
 {
     private const string Junk = "ДАННОЕ СООБЩЕНИЕ (МАТЕРИАЛ) СОЗДАНО И (ИЛИ) РАСПРОСТРАНЕНО ИНОСТРАННЫМ СРЕДСТВОМ МАССОВОЙ ИНФОРМАЦИИ, ВЫПОЛНЯЮЩИМ ФУНКЦИИ ИНОСТРАННОГО АГЕНТА, И (ИЛИ) РОССИЙСКИМ ЮРИДИЧЕСКИМ ЛИЦОМ, ВЫПОЛНЯЮЩИМ ФУНКЦИИ ИНОСТРАННОГО АГЕНТА";
 #if DEBUG
-    private const Visibility Visibility = Mastonet.Visibility.Direct;
+    private const Visibility Visibility = Mastonet.Visibility.Private;
 #else    
     private const Visibility Visibility = Mastonet.Visibility.Public;
 #endif
@@ -31,6 +32,8 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
     {
         reader = telegramReader;
         var instance = await client.GetInstanceV2().ConfigureAwait(false);
+        var user = await client.GetCurrentUser().ConfigureAwait(false);
+        Log.Info($"We're logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
         maxLength = instance.Configuration.Statutes.MaxCharacters;
         maxAttachments = instance.Configuration.Statutes.MaxMediaAttachments;
         linkReserved = instance.Configuration.Statutes.CharactersReservedPerUrl;
@@ -45,7 +48,9 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                     {
                         try
                         {
-                            var text = evt.Message.message;
+                            if (db.MessageMaps.AsNoTracking().FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 })
+                                return;
+                            
                             string? replyStatusId = null;
                             Attachment? attachment = null;
                             if (evt.Message.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
@@ -53,9 +58,7 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
                                     replyStatusId = map.MastodonId;
                             }
-                            if (evt.Message.media is MessageMediaWebPage { webpage: WebPage page })
-                                text += $"\n\n{page.url}";
-                            else if (evt.Message.media is MessageMediaPhoto { photo: Photo photo })
+                            if (evt.Message.media is MessageMediaPhoto { photo: Photo photo })
                             {
                                 try
                                 {
@@ -69,12 +72,8 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                                     Log.Error(e, "Failed to download image");
                                 }
                             }
-                            else if (evt.Message.media is not null)
-                            {
-                                Log.Warn($"Unsupported media attachment of type {evt.Message.media.GetType()}");
-                            }
 
-                            var (title, body) = FormatTitleAndBody(text, evt.Link ?? $"https://t.me/meduzalive/{evt.Message.id}");
+                            var (title, body) = FormatTitleAndBody(evt.Message, evt.Link);
                             var status = client.PublishStatus(
                                 spoilerText: title,
                                 status: body,
@@ -85,6 +84,7 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                             ).ConfigureAwait(false).GetAwaiter().GetResult();
                             db.MessageMaps.Add(new() { TelegramId = evt.Message.id, MastodonId = status.Id });
                             await db.SaveChangesAsync().ConfigureAwait(false);
+                            Log.Info($"Posted new status from {evt.Link} to {status.Url}");
                         }
                         catch (Exception e)
                         {
@@ -94,7 +94,11 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                     }
                     case TgEventType.Edit:
                     {
-                        Log.Warn("Status edit is not implemented yet");
+                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 } map)
+                        {
+                            var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
+                            Log.Warn($"Status edit is not implemented! Please adjust content manually from {evt.Link} for {status.Url}");
+                        }
                         break;
                     }
                     case TgEventType.Delete:
@@ -106,6 +110,7 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
                                 db.MessageMaps.Remove(map);
                                 await db.SaveChangesAsync().ConfigureAwait(false);
+                                Log.Info($"Removed status {map.MastodonId}");
                             }
                             catch (Exception e)
                             {
@@ -125,8 +130,13 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
     public void OnError(Exception e) => Log.Error(e);
     public void OnNext(TgEvent evt) => events.Enqueue(evt);
 
-    private (string? title, string body) FormatTitleAndBody(string text, string link)
+    private (string? title, string body) FormatTitleAndBody(Message message, string? link)
     {
+        link ??= $"https://t.me/meduzalive/{message.id}";
+        var text = message.message;
+        if (message.media is MessageMediaWebPage { webpage: WebPage page })
+            text += $"\n\n{page.url}";
+        
         var paragraphs = text
             .Replace(Junk, "")
             .Replace("\n\n\n\n", "\n\n")
@@ -135,18 +145,18 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
             .ToList();
         paragraphs = Reduce(paragraphs, link);
         
-        if (paragraphs.Count > 1)
+        if (paragraphs.Count > 2)
         {
             var title = paragraphs[0];
             var body = string.Join('\n', paragraphs.Skip(1));
             return (title, body);
         }
         
-        if (paragraphs.Count == 1)
+        if (paragraphs.Count > 1)
         {
             var parts = paragraphs[0].Split('.', 2);
             if (parts.Length == 2)
-                return (parts[0], parts[1].Trim());
+                return (parts[0], string.Join('\n', new[]{parts[1].Trim()}.Concat(paragraphs.Skip(1))));
             return (null, paragraphs[0]);
         }
 
