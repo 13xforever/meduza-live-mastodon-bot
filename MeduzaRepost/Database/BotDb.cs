@@ -6,7 +6,8 @@ namespace MeduzaRepost.Database;
 internal sealed class BotDb: DbContext
 {
     public DbSet<BotState> BotState { get; set; } = null!;
-    
+    public DbSet<MessageMap> MessageMaps { get; set; } = null!;
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         var dbPath = DbImporter.GetDbPath("bot.db", Environment.SpecialFolder.ApplicationData);

@@ -6,50 +6,53 @@ using WTelegram;
 
 namespace MeduzaRepost;
 
-public sealed class TelegramReader: IDisposable, IObservable<TgEvent>
+public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 {
-    private readonly Client client = new(Config.Get);
-    private readonly ILogger log = Config.Log;
+    private static readonly ILogger Log = Config.Log;
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
+    private readonly BotDb db = new();
 
-    static TelegramReader() => Helpers.Log = (level, message) => Config.Log.Log(LogLevel.FromOrdinal(level), message);
+    private Channel channel = null!;
+    internal readonly Client Client = new(Config.Get);
+
+    static TelegramReader() => Helpers.Log = (level, message) => Log.Log(LogLevel.FromOrdinal(level), message);
     
     public async Task Run()
     {
-        var bot = await client.LoginUserIfNeeded().ConfigureAwait(false);
-        log.Info($"We are logged-in as {bot} (id {bot.id})");
-        var chats = await client.Messages_GetAllChats().ConfigureAwait(false);
-        log.Debug($"Open chat count: {chats.chats.Count}");
-        if (chats.chats.Values.FirstOrDefault(chat => chat is Channel { username: "meduzalive" }) is not Channel channel)
+        var bot = await Client.LoginUserIfNeeded().ConfigureAwait(false);
+        Log.Info($"We are logged-in as {bot} (id {bot.id})");
+        var chats = await Client.Messages_GetAllChats().ConfigureAwait(false);
+        Log.Debug($"Open chat count: {chats.chats.Count}");
+        if (chats.chats.Values.FirstOrDefault(chat => chat is Channel { username: "meduzalive" }) is not Channel ch)
         {
-            log.Error("Meduza channel (@meduzalive) is not available");
+            Log.Error("Meduza channel (@meduzalive) is not available");
             return;
         }
 
         // check and init saved pts value if needed
-        log.Info($"Reading channel #{channel.ID}: {channel.Title}");
-        await using var db = new BotDb();
+        channel = ch;
+        Log.Info($"Reading channel #{channel.ID}: {channel.Title}");
         if (db.BotState.FirstOrDefault(s => s.Key == "pts")?.Value is not { Length: > 0 } ptsVal
             || !int.TryParse(ptsVal, out var savedPts)
             || savedPts == 0)
         {
-            log.Info("No saved pts value, initializing state");
-            var dialogs = await client.Messages_GetPeerDialogs(channel.ToInputPeer()).ConfigureAwait(false);
+            Log.Info("No saved pts value, initializing state");
+            var dialogs = await Client.Messages_GetPeerDialogs(channel.ToInputPeer()).ConfigureAwait(false);
             if (dialogs.dialogs is not [Dialog dialog] || dialog.Peer.ID != channel.ID)
             {
-                log.Error("Failed to fetch current channel status");
+                Log.Error("Failed to fetch current channel status");
                 return;
             }
 
             savedPts = dialog.pts;
-            log.Info($"Got initial pts value: {savedPts}");
+            Log.Info($"Got initial pts value: {savedPts}");
             db.BotState.Add(new() { Key = "pts", Value = savedPts.ToString() });
             await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
         }
         else
         {
             // check missed updates
-            var diff = await client.Updates_GetChannelDifference(channel, null, savedPts).ConfigureAwait(false);
+            var diff = await Client.Updates_GetChannelDifference(channel, null, savedPts).ConfigureAwait(false);
             do
             {
                 foreach (var message in diff.NewMessages.OfType<Message>())
@@ -59,7 +62,7 @@ public sealed class TelegramReader: IDisposable, IObservable<TgEvent>
             } while (!diff.Final);
         }
 
-        client.OnUpdate += OnUpdate;
+        Client.OnUpdate += OnUpdate;
 
     }
 
@@ -72,15 +75,17 @@ public sealed class TelegramReader: IDisposable, IObservable<TgEvent>
         {
             switch (update)
             {
-                case UpdateNewMessage u:
+                case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
                 {
-                    Push(new(TgEventType.Post, (Message)u.message));
+                    var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
+                    Push(new(TgEventType.Post, (Message)u.message, link.link));
                     await UpdatePts(u.pts).ConfigureAwait(false);
                     break;
                 }
-                case UpdateEditMessage u:
+                case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
                 {
-                    Push(new(TgEventType.Edit, (Message)u.message));
+                    var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
+                    Push(new(TgEventType.Edit, (Message)u.message, link.link));
                     await UpdatePts(u.pts).ConfigureAwait(false);
                     break;
                 }
@@ -93,7 +98,7 @@ public sealed class TelegramReader: IDisposable, IObservable<TgEvent>
                 }
                 default:
                 {
-                    log.Debug($"Ignoring update of type {update.GetType().Name}");
+                    Log.Debug($"Ignoring update of type {update.GetType().Name}");
                     break;
                 }
             }
@@ -109,38 +114,38 @@ public sealed class TelegramReader: IDisposable, IObservable<TgEvent>
             }
             catch (Exception e)
             {
-                log.Error(e, "Failed to push telegram event");
+                Log.Error(e, "Failed to push telegram event");
             }
     }
 
     private async Task UpdatePts(int pts)
     {
-        await using var db = new BotDb();
         var state = db.BotState.First(s => s.Key == "pts");
         var savedPts = int.Parse(state.Value);
         if (pts != savedPts + 1)
-            log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {pts}");
+            Log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {pts}");
         if (pts > savedPts)
         {
             state.Value = pts.ToString();
             await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
         }
         else
-            log.Warn($"Ignoring request to update pts from {savedPts} to {pts}");
+            Log.Warn($"Ignoring request to update pts from {savedPts} to {pts}");
     }
 
     public void Dispose()
     {
         foreach (var observer in subscribers.Keys)
             observer.OnCompleted();
-        client.Dispose();
+        Client.Dispose();
+        db.Dispose();
     }
 
     public IDisposable Subscribe(IObserver<TgEvent> observer)
     {
         if (!subscribers.TryGetValue(observer, out var unsubscriber))
         {
-            unsubscriber = new Unsubscriber(subscribers, observer);
+            unsubscriber = new(subscribers, observer);
             if (!subscribers.TryAdd(observer, unsubscriber))
                 throw new InvalidOperationException("Observer is already subscribed");
         }
@@ -161,4 +166,4 @@ public enum TgEventType
     Pin,
 }
 
-public sealed record TgEvent(TgEventType Type, Message Message); 
+public sealed record TgEvent(TgEventType Type, Message Message, string? Link = null); 

@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.UserSecrets;
 using Microsoft.Extensions.Logging;
+using Microsoft.IO;
 using NLog;
 using NLog.Extensions.Logging;
 using NLog.Filters;
@@ -22,6 +23,7 @@ public static class Config
     internal static readonly CancellationTokenSource Cts = new();
     internal static readonly ILogger Log;
     internal static readonly ILoggerFactory LoggerFactory;
+    internal static readonly RecyclableMemoryStreamManager MemoryStreamManager = new();
     
     static Config()
     {

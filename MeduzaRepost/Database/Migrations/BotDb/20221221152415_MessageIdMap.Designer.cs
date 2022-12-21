@@ -2,6 +2,7 @@
 using MeduzaRepost.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -9,9 +10,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MeduzaRepost.Database.Migrations.BotDb
 {
     [DbContext(typeof(Database.BotDb))]
-    partial class BotDbModelSnapshot : ModelSnapshot
+    [Migration("20221221152415_MessageIdMap")]
+    partial class MessageIdMap
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "7.0.1");
