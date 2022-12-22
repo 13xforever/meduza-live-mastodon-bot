@@ -24,14 +24,14 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private static readonly ILogger Log = Config.Log;
     private static readonly char[] SentenceEndPunctuation = { '.', '!', '?' };
 
-    private readonly MastodonClient client = new(Config.Get("instance"), Config.Get("access_token"));
+    private readonly MastodonClient client = new(Config.Get("instance")!, Config.Get("access_token")!);
     private readonly BotDb db = new();
     private readonly ConcurrentQueue<TgEvent> events = new();
 
-    private TelegramReader reader;
+    private TelegramReader reader = null!;
     private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize, maxDescriptionLength;
-    private HashSet<string> mimeTypes;
-    private bool SupportsMarkdown = false;
+    private HashSet<string> mimeTypes = null!;
+    //private bool SupportsMarkdown = false;
     
     public async Task Run(TelegramReader telegramReader)
     {
@@ -333,7 +333,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private async Task UpdatePts(int pts)
     {
         var state = db.BotState.First(s => s.Key == "pts");
-        var savedPts = int.Parse(state.Value);
+        var savedPts = int.Parse(state.Value!);
         if (pts != savedPts + 1)
             Log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {pts}");
         if (pts > savedPts)

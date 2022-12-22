@@ -107,6 +107,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         if (arg is not UpdatesBase updates)
             return;
 
+        Log.Info($"Received {updates.UpdateList.Length} updates");
         MessageGroup? group = null;
         foreach (var update in updates.UpdateList)
         {
@@ -114,11 +115,10 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             {
                 case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
                 {
+                    Log.Info($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
                     var msg = (Message)u.message;
                     if (u.pts_count > 1)
-                    {
                         Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
-                    }
                     if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
                     {
                         if (group is null)
@@ -165,17 +165,20 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                 }
                 case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
                 {
+                    Log.Info($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
                     var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
                     Push(new(TgEventType.Edit, new((Message)u.message), u.pts, link.link));
                     break;
                 }
                 case UpdateDeleteMessages u:
                 {
+                    Log.Info($"Processing DeleteMessage update, pts={u.pts}, count={u.pts_count}");
                     Push(new(TgEventType.Delete, new(u.messages), u.pts));
                     break;
                 }
                 case UpdatePinnedMessages u:
                 {
+                    Log.Info($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
                     Push(new(TgEventType.Pin, new(u.messages), u.pts));
                     break;
                 }

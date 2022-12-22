@@ -31,8 +31,10 @@ public static class Config
         LoggerFactory = new NLogLoggerFactory();
         Log.Info("Log path: " + CurrentLogPath);
         config = new ConfigurationBuilder().AddUserSecrets(Assembly.GetExecutingAssembly()).Build();
-        if (Assembly.GetEntryAssembly()?.GetCustomAttribute<UserSecretsIdAttribute>() is UserSecretsIdAttribute attribute)
-            secretsPath = Path.GetDirectoryName(PathHelper.GetSecretsPathFromSecretsId(attribute.UserSecretsId))!;
+        if (Assembly.GetEntryAssembly()?.GetCustomAttribute<UserSecretsIdAttribute>() is not UserSecretsIdAttribute attribute)
+            throw new InvalidOperationException("Failed to find UserSecretsId attribute");
+        
+        secretsPath = Path.GetDirectoryName(PathHelper.GetSecretsPathFromSecretsId(attribute.UserSecretsId))!;
     }
 
     private static string? InteractiveGet(string param)
