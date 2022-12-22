@@ -172,7 +172,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         if (text is { Length: > 0 } && Junk.Match(text) is { Success: true } m)
         {
             var g = m.Groups["junk"];
-            text = text[..(g.Index)] + text[(g.Index + g.Length + 1)..];
+            text = text[..(g.Index)] + text[(g.Index + g.Length)..];
         }
         else
         {

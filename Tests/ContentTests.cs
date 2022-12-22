@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MeduzaRepost;
 
 namespace Tests;
@@ -24,8 +25,34 @@ public class ContentTests
 
         var g = m.Groups["junk"];
         var before = sample[..(g.Index)];
-        var after = sample[(g.Index + g.Length + 1)..];
+        var after = sample[(g.Index + g.Length)..];
         var text = before + after;
         Assert.That(text, Has.Length.LessThan(sample.Length));
+    }
+
+    [Test]
+    public void RegexTest()
+    {
+        var s = "asdf qwer weriotu";
+        var m = Regex.Match(s, "we");
+        var g = m.Groups[0];
+        var start = s[..(g.Index)];
+        var end = s[(g.Index + g.Length)..];
+        Assert.That(start, Is.EqualTo("asdf q"));
+        Assert.That(end, Is.EqualTo("r weriotu"));
+
+        m = Regex.Match(s, "asd");
+        g = m.Groups[0];
+        start = s[..(g.Index)];
+        end = s[(g.Index + g.Length)..];
+        Assert.That(start, Is.EqualTo(""));
+        Assert.That(end, Is.EqualTo("f qwer weriotu"));
+
+        m = Regex.Match(s, "otu");
+        g = m.Groups[0];
+        start = s[..(g.Index)];
+        end = s[(g.Index + g.Length)..];
+        Assert.That(start, Is.EqualTo("asdf qwer weri"));
+        Assert.That(end, Is.EqualTo(""));
     }
 }
