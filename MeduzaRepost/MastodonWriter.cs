@@ -29,7 +29,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private readonly ConcurrentQueue<TgEvent> events = new();
 
     private TelegramReader reader;
-    private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize;
+    private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize, maxDescriptionLength;
     private HashSet<string> mimeTypes;
     private bool SupportsMarkdown = false;
     
@@ -40,6 +40,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var user = await client.GetCurrentUser().ConfigureAwait(false);
         Log.Info($"We're logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
         maxLength = instance.Configuration.Statutes.MaxCharacters;
+        maxDescriptionLength = 1500;
         maxAttachments = instance.Configuration.Statutes.MaxMediaAttachments;
         linkReserved = instance.Configuration.Statutes.CharactersReservedPerUrl;
         mimeTypes = new(instance.Configuration.MediaAttachments.SupportedMimeTypes);
@@ -272,6 +273,9 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         }
         if (srcImg is null && srcDoc is null)
             return default;
+
+        if (attachmentDescription?.Length > maxDescriptionLength)
+            attachmentDescription = attachmentDescription[..1499].Trim() + "…";
 
         var memStream = Config.MemoryStreamManager.GetStream();
         if (srcImg is not null)
