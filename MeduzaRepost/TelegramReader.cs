@@ -107,7 +107,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         if (arg is not UpdatesBase updates)
             return;
 
-        Log.Info($"Received {updates.UpdateList.Length} updates");
+        Log.Debug($"Received {updates.UpdateList.Length} updates");
         MessageGroup? group = null;
         foreach (var update in updates.UpdateList)
         {
