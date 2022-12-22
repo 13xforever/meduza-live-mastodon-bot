@@ -18,7 +18,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 #if DEBUG
     private const Visibility Visibility = Mastonet.Visibility.Private;
 #else    
-    private const Visibility Visibility = Mastonet.Visibility.Public;
+    private const Visibility Visibility = Mastonet.Visibility.Unlisted;
 #endif
     
     private static readonly ILogger Log = Config.Log;
