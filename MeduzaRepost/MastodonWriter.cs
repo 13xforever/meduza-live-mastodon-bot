@@ -56,83 +56,31 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     {
                         try
                         {
-                            if (db.MessageMaps.AsNoTracking().FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 })
+                            if (db.MessageMaps.AsNoTracking().Any(m => m.TelegramId == evt.Group.MessageList[0].id))
+                            {
+                                await UpdatePts(evt.pts).ConfigureAwait(false);
                                 return;
-
-                            if (evt.Message.message is null or "" && evt.Message.flags.HasFlag(Message.Flags.has_grouped_id))
-                                return;
+                            }
                             
                             string? replyStatusId = null;
-                            Attachment? attachment = null;
-                            Photo? srcImg = null;
-                            Document? srcDoc = null;
-                            string? attachmentDescription = null;
-                            if (evt.Message.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
+                            var msg = evt.Group.MessageList[0];
+                            if (msg.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
                             {
                                 if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
                                     replyStatusId = map.MastodonId;
                             }
-                            if (evt.Message.media is MessageMediaPhoto { photo: Photo photo })
-                                srcImg = photo;
-                            else if (evt.Message.media is MessageMediaDocument { document: Document doc } && mimeTypes.Contains(doc.mime_type))
-                                srcDoc = doc;
-                            else if (evt.Message.media is MessageMediaWebPage { webpage: WebPage webPage })
-                            {
-                                if (webPage.photo is Photo embedImage)
-                                    srcImg = embedImage;
-                                else if (webPage.document is Document embedDoc && mimeTypes.Contains(embedDoc.mime_type))
-                                    srcDoc = embedDoc;
-                                attachmentDescription = webPage.description;
-                            }
-                            if (srcImg is not null)
-                            {
-                                try
-                                {
-                                    await using var memStream = Config.MemoryStreamManager.GetStream();
-                                    await reader.Client.DownloadFileAsync(srcImg, memStream).ConfigureAwait(false);
-                                    memStream.Seek(0, SeekOrigin.Begin);
-                                    if (memStream.Length < maxImageSize)
-                                        attachment = await client.UploadMedia(
-                                            data: memStream,
-                                            fileName: srcImg.id.ToString(),
-                                            description: attachmentDescription
-                                        ).ConfigureAwait(false);
-                                }
-                                catch (Exception e)
-                                {
-                                    Log.Error(e, "Failedto download image");
-                                }
-                            }
-                            else if (srcDoc?.size < maxVideoSize)
-                            {
-                                try
-                                {
-                                    await using var memStream = Config.MemoryStreamManager.GetStream();
-                                    await reader.Client.DownloadFileAsync(srcDoc, memStream).ConfigureAwait(false);
-                                    memStream.Seek(0, SeekOrigin.Begin);
-                                    attachment = await client.UploadMedia(
-                                        data: memStream,
-                                        fileName: srcDoc.Filename ?? srcDoc.id.ToString(),
-                                        description: attachmentDescription
-                                    ).ConfigureAwait(false);
-                                }
-                                catch (Exception e)
-                                {
-                                    Log.Error(e, $"Failedto download media file of type {srcDoc.mime_type}, {srcDoc.size}");
-                                }
-                            }
-
-                            var (title, body) = FormatTitleAndBody(evt.Message, evt.Link);
+                            var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
+                            var (title, body) = FormatTitleAndBody(msg, evt.Link);
                             var status = client.PublishStatus(
                                 spoilerText: title,
                                 status: body,
                                 replyStatusId: replyStatusId,
-                                mediaIds: attachment is null ? null : new[] { attachment.Id },
+                                mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
                                 visibility: Visibility,
                                 language: "ru"
                             ).ConfigureAwait(false).GetAwaiter().GetResult();
-                            db.MessageMaps.Add(new() { TelegramId = evt.Message.id, MastodonId = status.Id });
-                            await db.SaveChangesAsync().ConfigureAwait(false);
+                            db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
+                            await UpdatePts(evt.pts).ConfigureAwait(false);
                             Log.Info($"Posted new status from {evt.Link} to {status.Url}");
                         }
                         catch (Exception e)
@@ -143,32 +91,41 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     }
                     case TgEventType.Edit:
                     {
-                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 } map)
+                        foreach (var message in evt.Group.MessageList)
                         {
-                            var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
-                            Log.Warn($"Status edit is not implemented! Please adjust content manually from {evt.Link} for {status.Url}");
+                            if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
+                            {
+                                var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
+                                Log.Warn($"Status edit is not implemented! Please adjust content manually from https://t.me/meduzalive/{message.id} for {status.Url}");
+                            }
                         }
+                        await UpdatePts(evt.pts).ConfigureAwait(false);
                         break;
                     }
                     case TgEventType.Delete:
                     {
-                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 } map)
-                            try
-                            {
-                                await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
-                                db.MessageMaps.Remove(map);
-                                await db.SaveChangesAsync().ConfigureAwait(false);
-                                Log.Info($"Removed status {map.MastodonId}");
-                            }
-                            catch (Exception e)
-                            {
-                                Log.Warn(e, "Failed to delete status");
-                            }
+                        foreach (var message in evt.Group.MessageList)
+                        {
+                            if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
+                                try
+                                {
+                                    await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
+                                    db.MessageMaps.Remove(map);
+                                    await db.SaveChangesAsync().ConfigureAwait(false);
+                                    Log.Info($"Removed status {map.MastodonId}");
+                                }
+                                catch (Exception e)
+                                {
+                                    Log.Warn(e, "Failed to delete status");
+                                }
+                        }
+                        await UpdatePts(evt.pts).ConfigureAwait(false);
                         break;
                     }
                     case TgEventType.Pin:
                     {
-                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == evt.Message.id) is { MastodonId.Length: > 0 } map)
+                        var msg = evt.Group.MessageList.Last();
+                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == msg.id) is { MastodonId.Length: > 0 } map)
                             try
                             {
                                 if (db.BotState.FirstOrDefault(s => s.Key == "pin_id") is { Value.Length: > 0 } pinState)
@@ -184,12 +141,12 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 var status = await client.Pin(map.MastodonId).ConfigureAwait(false);
                                 Log.Info($"Pinned new message {status.Url}");
                                 pinState.Value = status.Id;
-                                await db.SaveChangesAsync().ConfigureAwait(false);
                             }
                             catch (Exception e)
                             {
                                 Log.Warn(e, $"Failed to pin message {map.MastodonId}");
                             }
+                        await UpdatePts(evt.pts).ConfigureAwait(false);
                         break;
                     }
                     default:
@@ -272,6 +229,93 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         }
         paragraphs.Add($"[…] 🔗 {link}");
         return paragraphs;
+    }
+
+    private async Task<List<Attachment>> CollectAttachmentsAsync(MessageGroup group)
+    {
+        var result = new List<Attachment>();
+        foreach (var m in group.MessageList)
+        {
+            var info = await GetAttachmentInfoAsync(m).ConfigureAwait(false);
+            var attachment = await client.UploadMedia(
+                data: info.data,
+                fileName: info.filename,
+                description: info.description
+            ).ConfigureAwait(false);
+            result.Add(attachment);
+            if (result.Count == maxAttachments)
+                break;
+        }
+        return result;
+    }
+
+    private async Task<(MemoryStream data, Document? doc, string filename, string? description)> GetAttachmentInfoAsync(Message message)
+    {
+        Photo? srcImg = null;
+        Document? srcDoc = null;
+        string? attachmentDescription = null;
+
+        if (message.media is MessageMediaPhoto { photo: Photo photo })
+            srcImg = photo;
+        else if (message.media is MessageMediaDocument { document: Document doc } && mimeTypes.Contains(doc.mime_type))
+            srcDoc = doc;
+        else if (message.media is MessageMediaWebPage { webpage: WebPage webPage })
+        {
+            if (webPage.photo is Photo embedImage)
+                srcImg = embedImage;
+            else if (webPage.document is Document embedDoc && mimeTypes.Contains(embedDoc.mime_type))
+                srcDoc = embedDoc;
+            attachmentDescription = webPage.description;
+        }
+        if (srcImg is null && srcDoc is null)
+            return default;
+
+        var memStream = Config.MemoryStreamManager.GetStream();
+        if (srcImg is not null)
+        {
+            try
+            {
+                await reader.Client.DownloadFileAsync(srcImg, memStream).ConfigureAwait(false);
+                memStream.Seek(0, SeekOrigin.Begin);
+                if (memStream.Length > maxImageSize)
+                    return default;
+                
+                return (memStream, null, srcImg.id.ToString(), attachmentDescription);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "Failedto download image");
+            }
+        }
+        else if (srcDoc?.size <= maxVideoSize)
+        {
+            try
+            {
+                await reader.Client.DownloadFileAsync(srcDoc, memStream).ConfigureAwait(false);
+                memStream.Seek(0, SeekOrigin.Begin);
+                return (memStream, null, srcDoc.Filename ?? srcDoc.id.ToString(), attachmentDescription);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, $"Failedto download media file of type {srcDoc.mime_type}, {srcDoc.size}");
+            }
+        }
+        return default;
+    }
+
+    private async Task UpdatePts(int pts)
+    {
+        var state = db.BotState.First(s => s.Key == "pts");
+        var savedPts = int.Parse(state.Value);
+        if (pts != savedPts + 1)
+            Log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {pts}");
+        if (pts > savedPts)
+        {
+            state.Value = pts.ToString();
+            await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
+        }
+        else
+            Log.Warn($"Ignoring request to update pts from {savedPts} to {pts}");
     }
 
     private static int GetSumLength(List<string> paragraphs) => paragraphs.Sum(p => p.Length) + (paragraphs.Count - 1) * 2;
