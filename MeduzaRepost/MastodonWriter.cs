@@ -89,7 +89,10 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     if (msg.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
                     {
                         if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
+                        {
                             replyStatusId = map.MastodonId;
+                            Log.Debug($"Trying to reply to {replyStatusId}");
+                        }
                     }
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
