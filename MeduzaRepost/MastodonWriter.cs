@@ -317,12 +317,10 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         if (pts != savedPts + 1)
             Log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {pts}");
         if (pts > savedPts)
-        {
             state.Value = pts.ToString();
-            await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
-        }
         else
             Log.Warn($"Ignoring request to update pts from {savedPts} to {pts}");
+        await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
     }
 
     private static int GetSumLength(List<string> paragraphs) => paragraphs.Sum(p => p.Length) + (paragraphs.Count - 1) * 2;
