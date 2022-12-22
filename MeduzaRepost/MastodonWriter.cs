@@ -237,6 +237,9 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         foreach (var m in group.MessageList)
         {
             var info = await GetAttachmentInfoAsync(m).ConfigureAwait(false);
+            if (info == default)
+                continue;
+            
             var attachment = await client.UploadMedia(
                 data: info.data,
                 fileName: info.filename,
