@@ -19,8 +19,9 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     
     public async Task Run()
     {
+        Log.Info("Trying to log into telegram account...");
         var bot = await Client.LoginUserIfNeeded().ConfigureAwait(false);
-        Log.Info($"We are logged-in as {bot} (id {bot.id})");
+        Log.Info($"We are logged in as {bot} (id {bot.id}) on telegram");
         var chats = await Client.Messages_GetAllChats().ConfigureAwait(false);
         Log.Debug($"Open chat count: {chats.chats.Count}");
         if (chats.chats.Values.FirstOrDefault(chat => chat is Channel { username: "meduzalive" }) is not Channel ch)

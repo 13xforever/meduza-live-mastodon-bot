@@ -36,6 +36,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     public async Task Run(TelegramReader telegramReader)
     {
         reader = telegramReader;
+        Log.Info("Trying to get mastodon information...");
         var instance = await client.GetInstanceV2().ConfigureAwait(false);
         var user = await client.GetCurrentUser().ConfigureAwait(false);
         Log.Info($"We're logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
