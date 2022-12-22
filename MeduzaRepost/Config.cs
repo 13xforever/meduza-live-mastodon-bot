@@ -30,9 +30,7 @@ public static class Config
         Log = GetLog();
         LoggerFactory = new NLogLoggerFactory();
         Log.Info("Log path: " + CurrentLogPath);
-        config = new ConfigurationBuilder()
-            .AddUserSecrets(Assembly.GetExecutingAssembly())
-            .Build();
+        config = new ConfigurationBuilder().AddUserSecrets(Assembly.GetExecutingAssembly()).Build();
         if (Assembly.GetEntryAssembly()?.GetCustomAttribute<UserSecretsIdAttribute>() is UserSecretsIdAttribute attribute)
             secretsPath = Path.GetDirectoryName(PathHelper.GetSecretsPathFromSecretsId(attribute.UserSecretsId))!;
     }

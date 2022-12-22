@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Mastonet;
 using Mastonet.Entities;
 using MeduzaRepost.Database;
@@ -8,9 +9,12 @@ using TL;
 
 namespace MeduzaRepost;
 
-public class MastodonWriter: IObserver<TgEvent>, IDisposable
+public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 {
-    private const string Junk = "ДАННОЕ СООБЩЕНИЕ (МАТЕРИАЛ) СОЗДАНО И (ИЛИ) РАСПРОСТРАНЕНО ИНОСТРАННЫМ СРЕДСТВОМ МАССОВОЙ ИНФОРМАЦИИ, ВЫПОЛНЯЮЩИМ ФУНКЦИИ ИНОСТРАННОГО АГЕНТА, И (ИЛИ) РОССИЙСКИМ ЮРИДИЧЕСКИМ ЛИЦОМ, ВЫПОЛНЯЮЩИМ ФУНКЦИИ ИНОСТРАННОГО АГЕНТА";
+    internal static readonly Regex Junk = new(
+        @"^(?<junk>ДАННОЕ\s+СООБЩЕНИЕ\b.+\bВЫПОЛНЯЮЩИМ\s+ФУНКЦИИ\s+ИНОСТРАННОГО\s+АГЕНТА\s*)$",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture
+    );
 #if DEBUG
     private const Visibility Visibility = Mastonet.Visibility.Private;
 #else    
@@ -206,13 +210,23 @@ public class MastodonWriter: IObserver<TgEvent>, IDisposable
     private (string? title, string body) FormatTitleAndBody(Message message, string? link)
     {
         link ??= $"https://t.me/meduzalive/{message.id}";
-        var text = message.message.Replace(Junk, "");
+        var text = message.message;
+        if (text is { Length: > 0 } && Junk.Match(text) is { Success: true } m)
+        {
+            var g = m.Groups["junk"];
+            text = text[..(g.Index)] + text[(g.Index + g.Length + 1)..];
+        }
+        else
+        {
+            Log.Warn($"Very sus, couldn't find a junk match in: {text}");
+        }
         if (message.media is MessageMediaWebPage { webpage: WebPage page })
             text += $"\n\n{page.url}";
         var paragraphs = text
             .Replace("\n\n\n\n", "\n\n")
             .Replace("\n\n\n", "\n\n")
             .Split("\n")
+            .Select(l => l.Trim())
             .ToList();
         paragraphs = Reduce(paragraphs, link);
         

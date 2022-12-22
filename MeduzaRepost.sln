@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeduzaRepost", "MeduzaRepost\MeduzaRepost.csproj", "{53DE47F2-F3B5-43B4-A02E-C011D6759CEC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{D7015E5A-F11D-4467-A5E6-BC1DAF596DB7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{53DE47F2-F3B5-43B4-A02E-C011D6759CEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{53DE47F2-F3B5-43B4-A02E-C011D6759CEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{53DE47F2-F3B5-43B4-A02E-C011D6759CEC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7015E5A-F11D-4467-A5E6-BC1DAF596DB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7015E5A-F11D-4467-A5E6-BC1DAF596DB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7015E5A-F11D-4467-A5E6-BC1DAF596DB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7015E5A-F11D-4467-A5E6-BC1DAF596DB7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
