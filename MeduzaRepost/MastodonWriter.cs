@@ -84,8 +84,15 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         return;
                     }
 
+                    if (evt.Group.MessageList[0] is { message: null or "" } msg && msg.flags.HasFlag(Message.Flags.has_grouped_id))
+                    {
+                        Log.Debug("Media-only message with a group flag, skipping");
+                        await UpdatePts(evt.pts).ConfigureAwait(false);
+                        return;
+                    }
+
                     string? replyStatusId = null;
-                    var msg = evt.Group.MessageList[0];
+                    msg = evt.Group.MessageList[0];
                     if (msg.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
                     {
                         if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)

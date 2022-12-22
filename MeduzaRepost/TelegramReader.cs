@@ -107,8 +107,11 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         if (arg is not UpdatesBase updates)
             return;
 
-        Log.Debug($"Received {updates.UpdateList.Length} updates");
-        MessageGroup? group = null;
+        if (updates.UpdateList.Length > 1)
+            Log.Info($"Received {updates.UpdateList.Length} updates");
+        else
+            Log.Debug($"Received {updates.UpdateList.Length} update");
+        var processedGroups = new HashSet<long>();
         foreach (var update in updates.UpdateList)
         {
             switch (update)
@@ -121,45 +124,26 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                         Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
                     if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
                     {
-                        if (group is null)
+                        if (!processedGroups.Add(msg.grouped_id))
                         {
-                            group = new(msg.grouped_id, u.pts_count, msg);
-                            Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
+                            Log.Info($"Skipping message {msg.id} from already processed group {msg.grouped_id}");
+                            continue;
                         }
-                        else
-                        {
-                            if (group.Id == msg.grouped_id)
-                            {
-                                group.MessageList.Add(msg);
-                                Log.Info($"Added new message to message group {group.Id}, now at {group.MessageList.Count}/{group.Expected}");
-                            }
-                            else
-                            {
-                                Log.Warn($"Unexpected group change! Current group is {group.Id}, message group {msg.grouped_id}");
-                                var groupLink = await Client.Channels_ExportMessageLink(channel, group.MessageList[0].id).ConfigureAwait(false);
-                                Push(new(TgEventType.Post, group, u.pts, groupLink.link));
-                                group = new(msg.grouped_id, u.pts_count, msg);
-                            }
-                        }
-                    }
-                    else if (group is not null)
-                    {
-                        Log.Warn($"Unexpected non-grouped message");
-                        var groupLink = await Client.Channels_ExportMessageLink(channel, group.MessageList[0].id).ConfigureAwait(false);
+                        
+                        var groupedMessages = updates.UpdateList
+                            .OfType<UpdateNewMessage>()
+                            .Select(up => (Message)up.message)
+                            .Where(m =>m.flags.HasFlag(Message.Flags.has_grouped_id) && m.grouped_id == msg.grouped_id)
+                            .ToList();
+                        var group = new MessageGroup(groupedMessages);
+                        var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id).ConfigureAwait(false);
+                        Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
                         Push(new(TgEventType.Post, group, u.pts, groupLink.link));
-                        group = null;
                     }
-                    if (group is null)
+                    else
                     {
                         var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
                         Push(new(TgEventType.Post, new(0, 1, msg), u.pts, link.link));
-                    }
-                    else if (group.MessageList.Count == group.Expected)
-                    {
-                        Log.Info($"Assembled complete message group of size {group.Expected}");
-                        var groupLink = await Client.Channels_ExportMessageLink(channel, group.MessageList[0].id).ConfigureAwait(false);
-                        Push(new(TgEventType.Post, group, u.pts, groupLink.link));
-                        group = null;
                     }
                     break;
                 }
