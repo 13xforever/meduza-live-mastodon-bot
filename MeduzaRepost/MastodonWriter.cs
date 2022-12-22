@@ -51,110 +51,14 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         {
             if (events.TryDequeue(out var evt))
             {
-                switch (evt.Type)
+                try
                 {
-                    case TgEventType.Post:
-                    {
-                        try
-                        {
-                            if (db.MessageMaps.AsNoTracking().Any(m => m.TelegramId == evt.Group.MessageList[0].id))
-                            {
-                                await UpdatePts(evt.pts).ConfigureAwait(false);
-                                return;
-                            }
-                            
-                            string? replyStatusId = null;
-                            var msg = evt.Group.MessageList[0];
-                            if (msg.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
-                            {
-                                if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
-                                    replyStatusId = map.MastodonId;
-                            }
-                            var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
-                            var (title, body) = FormatTitleAndBody(msg, evt.Link);
-                            var status = client.PublishStatus(
-                                spoilerText: title,
-                                status: body,
-                                replyStatusId: replyStatusId,
-                                mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
-                                visibility: Visibility,
-                                language: "ru"
-                            ).ConfigureAwait(false).GetAwaiter().GetResult();
-                            db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
-                            await UpdatePts(evt.pts).ConfigureAwait(false);
-                            Log.Info($"Posted new status from {evt.Link} to {status.Url}");
-                        }
-                        catch (Exception e)
-                        {
-                            Log.Error(e);
-                        }
-                        break;
-                    }
-                    case TgEventType.Edit:
-                    {
-                        foreach (var message in evt.Group.MessageList)
-                        {
-                            if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
-                            {
-                                var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
-                                Log.Warn($"Status edit is not implemented! Please adjust content manually from https://t.me/meduzalive/{message.id} for {status.Url}");
-                            }
-                        }
-                        await UpdatePts(evt.pts).ConfigureAwait(false);
-                        break;
-                    }
-                    case TgEventType.Delete:
-                    {
-                        foreach (var message in evt.Group.MessageList)
-                        {
-                            if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
-                                try
-                                {
-                                    await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
-                                    db.MessageMaps.Remove(map);
-                                    await db.SaveChangesAsync().ConfigureAwait(false);
-                                    Log.Info($"Removed status {map.MastodonId}");
-                                }
-                                catch (Exception e)
-                                {
-                                    Log.Warn(e, "Failed to delete status");
-                                }
-                        }
-                        await UpdatePts(evt.pts).ConfigureAwait(false);
-                        break;
-                    }
-                    case TgEventType.Pin:
-                    {
-                        var msg = evt.Group.MessageList.Last();
-                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == msg.id) is { MastodonId.Length: > 0 } map)
-                            try
-                            {
-                                if (db.BotState.FirstOrDefault(s => s.Key == "pin_id") is { Value.Length: > 0 } pinState)
-                                {
-                                    if (pinState.Value == map.MastodonId)
-                                        return;
-                                    
-                                    var pin = await client.Unpin(pinState.Value).ConfigureAwait(false);
-                                    Log.Info($"Unpinned {pin.Url}");
-                                }
-                                else
-                                    pinState = db.BotState.Add(new() { Key = "pin_id", Value = "0" }).Entity;
-                                var status = await client.Pin(map.MastodonId).ConfigureAwait(false);
-                                Log.Info($"Pinned new message {status.Url}");
-                                pinState.Value = status.Id;
-                            }
-                            catch (Exception e)
-                            {
-                                Log.Warn(e, $"Failed to pin message {map.MastodonId}");
-                            }
-                        await UpdatePts(evt.pts).ConfigureAwait(false);
-                        break;
-                    }
-                    default:
-                    {
-                        Log.Error($"Unknown event type {evt.Type}");
-                        break;
-                    }
+                    await TryToHandle(evt).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e, "Will retry in a minute");
+                    await Task.Delay(TimeSpan.FromMinutes(1));
                 }
             }
             await Task.Delay(1000).ConfigureAwait(false);
@@ -164,6 +68,118 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     public void OnCompleted() => Config.Cts.Cancel(false);
     public void OnError(Exception e) => Log.Error(e);
     public void OnNext(TgEvent evt) => events.Enqueue(evt);
+
+    private async Task TryToHandle(TgEvent evt)
+    {
+        switch (evt.Type)
+        {
+            case TgEventType.Post:
+            {
+                try
+                {
+                    if (db.MessageMaps.AsNoTracking().Any(m => m.TelegramId == evt.Group.MessageList[0].id))
+                    {
+                        await UpdatePts(evt.pts).ConfigureAwait(false);
+                        return;
+                    }
+
+                    string? replyStatusId = null;
+                    var msg = evt.Group.MessageList[0];
+                    if (msg.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
+                    {
+                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
+                            replyStatusId = map.MastodonId;
+                    }
+                    var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
+                    var (title, body) = FormatTitleAndBody(msg, evt.Link);
+                    var status = client.PublishStatus(
+                        spoilerText: title,
+                        status: body,
+                        replyStatusId: replyStatusId,
+                        mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
+                        visibility: Visibility,
+                        language: "ru"
+                    ).ConfigureAwait(false).GetAwaiter().GetResult();
+                    db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
+                    await UpdatePts(evt.pts).ConfigureAwait(false);
+                    Log.Info($"Posted new status from {evt.Link} to {status.Url}");
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e, "Failed to post new status");
+                    throw;
+                }
+                break;
+            }
+            case TgEventType.Edit:
+            {
+                foreach (var message in evt.Group.MessageList)
+                {
+                    if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
+                    {
+                        var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
+                        Log.Warn($"Status edit is not implemented! Please adjust content manually from https://t.me/meduzalive/{message.id} for {status.Url}");
+                    }
+                }
+                await UpdatePts(evt.pts).ConfigureAwait(false);
+                break;
+            }
+            case TgEventType.Delete:
+            {
+                foreach (var message in evt.Group.MessageList)
+                {
+                    if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
+                        try
+                        {
+                            await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
+                            db.MessageMaps.Remove(map);
+                            await db.SaveChangesAsync().ConfigureAwait(false);
+                            Log.Info($"Removed status {map.MastodonId}");
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Warn(e, "Failed to delete status");
+                            throw;
+                        }
+                }
+                await UpdatePts(evt.pts).ConfigureAwait(false);
+                break;
+            }
+            case TgEventType.Pin:
+            {
+                var msg = evt.Group.MessageList.Last();
+                if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == msg.id) is { MastodonId.Length: > 0 } map)
+                    try
+                    {
+                        if (db.BotState.FirstOrDefault(s => s.Key == "pin_id") is { Value.Length: > 0 } pinState)
+                        {
+                            if (pinState.Value == map.MastodonId)
+                                return;
+
+                            var pin = await client.Unpin(pinState.Value).ConfigureAwait(false);
+                            Log.Info($"Unpinned {pin.Url}");
+                        }
+                        else
+                            pinState = db.BotState.Add(new() { Key = "pin_id", Value = "0" }).Entity;
+                        var status = await client.Pin(map.MastodonId).ConfigureAwait(false);
+                        Log.Info($"Pinned new message {status.Url}");
+                        pinState.Value = status.Id;
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Warn(e, $"Failed to pin message {map.MastodonId}");
+                        throw;
+                    }
+                await UpdatePts(evt.pts).ConfigureAwait(false);
+                break;
+            }
+            default:
+            {
+                Log.Error($"Unknown event type {evt.Type}");
+                break;
+            }
+        }
+    }
 
     private (string? title, string body) FormatTitleAndBody(Message message, string? link)
     {
