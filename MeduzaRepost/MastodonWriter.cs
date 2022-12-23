@@ -52,15 +52,20 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         {
             if (events.TryDequeue(out var evt))
             {
-                try
+                var success = false;
+                do
                 {
-                    await TryToHandle(evt).ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    Log.Error(e, "Will retry in a minute");
-                    await Task.Delay(TimeSpan.FromMinutes(1));
-                }
+                    try
+                    {
+                        await TryToHandle(evt).ConfigureAwait(false);
+                        success = true;
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error(e, "Will retry in a minute");
+                        await Task.Delay(TimeSpan.FromMinutes(1));
+                    }
+                } while (!success);
             }
             await Task.Delay(1000).ConfigureAwait(false);
         }
