@@ -135,7 +135,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                             .Select(up => (Message)up.message)
                             .Where(m =>m.flags.HasFlag(Message.Flags.has_grouped_id) && m.grouped_id == msg.grouped_id)
                             .ToList();
-                        var group = new MessageGroup(groupedMessages);
+                        var group = new MessageGroup(msg.grouped_id, groupedMessages);
                         var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id).ConfigureAwait(false);
                         Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
                         Push(new(TgEventType.Post, group, u.pts, groupLink.link));
@@ -241,6 +241,13 @@ public sealed class MessageGroup
     public MessageGroup(List<Message> messages)
     {
         Id = 0;
+        Expected = messages.Count;
+        MessageList = messages;
+    }
+
+    public MessageGroup(long groupId, List<Message> messages)
+    {
+        Id = groupId;
         Expected = messages.Count;
         MessageList = messages;
     }
