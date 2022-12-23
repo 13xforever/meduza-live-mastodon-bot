@@ -57,7 +57,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                             
                             lastGroupId = message.grouped_id;
                             var group = diff.NewMessages.OfType<Message>().Where(m => m.grouped_id == lastGroupId).ToList();
-                            var groupLink = await Client.Channels_ExportMessageLink(channel, group[0].id).ConfigureAwait(false);
+                            var groupLink = await Client.Channels_ExportMessageLink(channel, group[0].id, true).ConfigureAwait(false);
                             Push(new(TgEventType.Post, new(group), diffPts, groupLink.link));
                             Log.Info($"Assembled message group {lastGroupId} of {group.Count} messages from channel diff");
                             continue;
@@ -136,7 +136,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                             .Where(m =>m.flags.HasFlag(Message.Flags.has_grouped_id) && m.grouped_id == msg.grouped_id)
                             .ToList();
                         var group = new MessageGroup(msg.grouped_id, groupedMessages);
-                        var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id).ConfigureAwait(false);
+                        var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
                         Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
                         Push(new(TgEventType.Post, group, u.pts, groupLink.link));
                     }
