@@ -12,7 +12,7 @@ namespace MeduzaRepost;
 public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 {
     internal static readonly Regex Junk = new(
-        @"^(?<junk>ДАННОЕ\s+СООБЩЕНИЕ\b.+\bВЫПОЛНЯЮЩИМ\s+ФУНКЦИИ\s+ИНОСТРАННОГО\s+АГЕНТА(\.|\s)*)$",
+        @"^(?<junk>ДАННОЕ\s+СООБЩЕНИЕ\b.+\bВЫПОЛНЯЮЩИМ\s+ФУНКЦИИ\s+ИНОСТРАННОГО\s+АГЕНТА?(\.|\s)*)$",
         RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture
     );
 #if DEBUG
