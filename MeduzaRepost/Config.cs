@@ -46,7 +46,7 @@ public static class Config
     public static string? Get(string param) => param switch
     {
         "session_pathname" => Path.Combine(secretsPath, "WTSession.bin"),
-        "app_version" => "0.1.0",
+        "app_version" => "1.0.0",
         "session_key" => null,
         "user_id" => null,
         "server_address" => null,

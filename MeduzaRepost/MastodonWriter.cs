@@ -108,21 +108,21 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     }
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
-                    var status = client.PublishStatus(
+                    var status = await client.PublishStatus(
                         spoilerText: title,
                         status: body,
                         replyStatusId: replyStatusId,
                         mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
                         visibility: Visibility,
                         language: "ru"
-                    ).ConfigureAwait(false).GetAwaiter().GetResult();
+                    ).ConfigureAwait(false);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
                     await UpdatePts(evt.pts).ConfigureAwait(false);
                     Log.Info($"Posted new status from {evt.Link} to {status.Url}");
                 }
                 catch (Exception e)
                 {
-                    Log.Error(e, "Failed to post new status");
+                    Log.Error(e, $"Failed to post new status for {evt.Link}");
                     throw;
                 }
                 break;
@@ -131,10 +131,25 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             {
                 foreach (var message in evt.Group.MessageList)
                 {
-                    if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
+                    try
                     {
-                        var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
-                        Log.Warn($"Status edit is not implemented! Please adjust content manually from https://t.me/meduzalive/{message.id} for {status.Url}");
+                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
+                        {
+                            var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
+                            var (title, body) = FormatTitleAndBody(message, evt.Link);
+                            status = await client.EditStatus(
+                                statusId: map.MastodonId,
+                                spoilerText: title,
+                                status: body,
+                                mediaIds: status.MediaAttachments.Select(a => a.Id),
+                                language: "ru"
+                            ).ConfigureAwait(false);
+                            Log.Info($"Updated status from {evt.Link} to {status.Url}");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error(e, $"Failed to update status for {evt.Link}");
                     }
                 }
                 await UpdatePts(evt.pts).ConfigureAwait(false);
