@@ -15,7 +15,7 @@ internal static class DbImporter
     {
         try
         {
-            Config.Log.Info($"Upgrading {dbContext.GetType().Name} database if needed...");
+            Config.Log.Debug($"Upgrading {dbContext.GetType().Name} database if needed...");
             await dbContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (SqliteException e)
@@ -23,7 +23,7 @@ internal static class DbImporter
             Config.Log.Warn(e, "Database upgrade failed, probably importing an unversioned one.");
             return false;
         }
-        Config.Log.Info("Database is ready.");
+        Config.Log.Info($"Database {dbContext.GetType().Name} is ready.");
         return true;
     }
     

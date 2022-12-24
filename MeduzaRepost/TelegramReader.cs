@@ -118,7 +118,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             {
                 case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
                 {
-                    Log.Info($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
+                    Log.Debug($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
                     var msg = (Message)u.message;
                     if (u.pts_count > 1)
                         Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
@@ -126,7 +126,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                     {
                         if (!processedGroups.Add(msg.grouped_id))
                         {
-                            Log.Info($"Skipping message {msg.id} from already processed group {msg.grouped_id}");
+                            Log.Debug($"Skipping message {msg.id} from already processed group {msg.grouped_id}");
                             continue;
                         }
                         
@@ -149,20 +149,20 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                 }
                 case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
                 {
-                    Log.Info($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
+                    Log.Debug($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
                     var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
                     Push(new(TgEventType.Edit, new((Message)u.message), u.pts, link.link));
                     break;
                 }
                 case UpdateDeleteMessages u:
                 {
-                    Log.Info($"Processing DeleteMessage update, pts={u.pts}, count={u.pts_count}");
+                    Log.Debug($"Processing DeleteMessage update, pts={u.pts}, count={u.pts_count}");
                     Push(new(TgEventType.Delete, new(u.messages), u.pts));
                     break;
                 }
                 case UpdatePinnedMessages u:
                 {
-                    Log.Info($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
+                    Log.Debug($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
                     Push(new(TgEventType.Pin, new(u.messages), u.pts));
                     break;
                 }
