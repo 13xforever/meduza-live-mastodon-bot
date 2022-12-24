@@ -137,6 +137,11 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         {
                             var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
                             var (title, body) = FormatTitleAndBody(message, evt.Link);
+                            if (title == status.SpoilerText && body == status.Text)
+                            {
+                                Log.Info($"Status edit did not change visible content, plz implement edit indicator ({evt.Link} → {status.Url})");
+                                continue;
+                            }
                             status = await client.EditStatus(
                                 statusId: map.MastodonId,
                                 spoilerText: title,
