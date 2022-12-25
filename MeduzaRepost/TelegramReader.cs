@@ -15,7 +15,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     private Channel channel = null!;
     internal readonly Client Client = new(Config.Get);
 
-    static TelegramReader() => Helpers.Log = (level, message) => Log.Log(LogLevel.FromOrdinal(level), message);
+    static TelegramReader() => Helpers.Log = (level, message) => Config.SpamLog.Log(LogLevel.FromOrdinal(level), message);
     
     public async Task Run()
     {

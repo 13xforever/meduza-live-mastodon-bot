@@ -21,26 +21,27 @@ public static class Config
     internal static string CurrentLogPath => Path.GetFullPath("./logs/bot.log");
 
     internal static readonly CancellationTokenSource Cts = new();
-    internal static readonly ILogger Log;
+    internal static readonly ILogger Log, SpamLog;
     internal static readonly ILoggerFactory LoggerFactory;
     internal static readonly RecyclableMemoryStreamManager MemoryStreamManager = new();
-    
+
     static Config()
     {
         Log = GetLog();
+        SpamLog = LogManager.GetLogger("spam");
         LoggerFactory = new NLogLoggerFactory();
         Log.Info("Log path: " + CurrentLogPath);
         config = new ConfigurationBuilder().AddUserSecrets(Assembly.GetExecutingAssembly()).Build();
         if (Assembly.GetEntryAssembly()?.GetCustomAttribute<UserSecretsIdAttribute>() is not UserSecretsIdAttribute attribute)
             throw new InvalidOperationException("Failed to find UserSecretsId attribute");
-        
+
         secretsPath = Path.GetDirectoryName(PathHelper.GetSecretsPathFromSecretsId(attribute.UserSecretsId))!;
     }
 
     private static string? InteractiveGet(string param)
     {
         Console.Write($"Enter {param}: ");
-        return Console.ReadLine() is {Length: >0} result ? result : null;
+        return Console.ReadLine() is { Length: > 0 } result ? result : null;
     }
 
     public static string? Get(string param) => param switch
@@ -57,11 +58,12 @@ public static class Config
         "lang_code" => null,
         _ => config.GetValue<string?>(param) ?? InteractiveGet(param),
     };
-    
-        private static ILogger GetLog()
+
+    private static ILogger GetLog()
     {
         var loggingConfig = new NLog.Config.LoggingConfiguration();
-        var fileTarget = new FileTarget("logfile") {
+        var fileTarget = new FileTarget("logfile")
+        {
             FileName = CurrentLogPath,
             ArchiveEvery = FileArchivePeriod.Day,
             ArchiveNumbering = ArchiveNumberingMode.DateAndSequence,
@@ -79,28 +81,28 @@ public static class Config
             OverflowAction = AsyncTargetWrapperOverflowAction.Block,
             BatchSize = 500,
         };
-        var consoleTarget = new ColoredConsoleTarget("logconsole") {
+        var consoleTarget = new ColoredConsoleTarget("logconsole")
+        {
             Layout = "${longdate} ${level:uppercase=true:padding=-5} ${message} ${onexception:" +
                      "${newline}${exception:format=Message}" +
                      ":when=not contains('${exception:format=ShortType}','TaskCanceledException')}",
         };
 #if DEBUG
+        loggingConfig.AddRule(LogLevel.Warn, LogLevel.Fatal, consoleTarget, "spam");
         loggingConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, consoleTarget, "default"); // only echo messages from default logger to the console
 #else
-            loggingConfig.AddRule(LogLevel.Info, LogLevel.Fatal, consoleTarget, "default");
+        loggingConfig.AddRule(LogLevel.Error, LogLevel.Fatal, consoleTarget, "spam");
+        loggingConfig.AddRule(LogLevel.Info, LogLevel.Fatal, consoleTarget, "default");
 #endif
         loggingConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, asyncFileTarget);
 
         var ignoreFilter1 = new ConditionBasedFilter { Condition = "contains('${message}','TaskCanceledException')", Action = FilterResult.Ignore, };
-//        var ignoreFilter2 = new ConditionBasedFilter { Condition = "contains('${message}','One or more pre-execution checks failed')", Action = FilterResult.Ignore, };
         foreach (var rule in loggingConfig.LoggingRules)
         {
             rule.Filters.Add(ignoreFilter1);
-//            rule.Filters.Add(ignoreFilter2);
             rule.FilterDefaultAction = FilterResult.Log;
         }
         LogManager.Configuration = loggingConfig;
         return LogManager.GetLogger("default");
     }
-
 }

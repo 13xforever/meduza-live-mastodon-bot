@@ -8,7 +8,7 @@ internal static class DbImporter
     internal static async Task<bool> UpgradeAsync(CancellationToken cancellationToken)
     {
         await using var db = new BotDb();
-        return await UpgradeAsync(db, Config.Cts.Token).ConfigureAwait(false);
+        return await UpgradeAsync(db, cancellationToken).ConfigureAwait(false);
     }
     
     private static async Task<bool> UpgradeAsync(DbContext dbContext, CancellationToken cancellationToken)
