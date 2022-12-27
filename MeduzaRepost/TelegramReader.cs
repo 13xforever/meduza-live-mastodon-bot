@@ -139,6 +139,8 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                         var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
                         Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
                         Push(new(TgEventType.Post, group, groupedUpdates.Select(t => t.u.pts).Max(), groupLink.link));
+                        if (updates.UpdateList.Length == group.MessageList.Count)
+                            return;
                     }
                     else
                     {
