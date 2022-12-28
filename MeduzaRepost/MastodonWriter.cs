@@ -16,9 +16,11 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture
     );
 #if DEBUG
-    private const Visibility Visibility = Mastonet.Visibility.Private;
+    private const Visibility NormalVisibility = Visibility.Private;
+    private const Visibility ImportantVisibility = Visibility.Private;
 #else    
-    private const Visibility Visibility = Mastonet.Visibility.Unlisted;
+    private const Visibility NormalVisibility = Visibility.Unlisted;
+    private const Visibility ImportantVisibility = Visibility.Public;
 #endif
     
     private static readonly ILogger Log = Config.Log;
@@ -113,12 +115,12 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         status: body,
                         replyStatusId: replyStatusId,
                         mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
-                        visibility: Visibility,
+                        visibility: GetVisibility(title, body),
                         language: "ru"
                     ).ConfigureAwait(false);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
                     await UpdatePts(evt.pts).ConfigureAwait(false);
-                    Log.Info($"Posted new status from {evt.Link} to {status.Url}");
+                    Log.Info($"Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
                 }
                 catch (Exception e)
                 {
@@ -215,6 +217,13 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 break;
             }
         }
+    }
+
+    private Visibility GetVisibility(string? title, string body)
+    {
+        if (title is { Length: > 0 } && title.Contains("Подходит к концу", StringComparison.OrdinalIgnoreCase))
+            return ImportantVisibility;
+        return NormalVisibility;
     }
 
     private (string? title, string body) FormatTitleAndBody(Message message, string? link)
