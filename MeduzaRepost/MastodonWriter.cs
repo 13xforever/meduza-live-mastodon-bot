@@ -15,6 +15,10 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         @"^(?<junk>\s*ДАННОЕ\s+СООБЩЕНИЕ\b.+\bВЫПОЛНЯЮЩИМ\s+ФУНКЦИИ\s+ИНОСТРАННОГО\s+АГЕНТА?(\.|\s)*)$",
         RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture
     );
+    internal static readonly Regex Important = new(
+        @"(?<important>((подходит\s+к\s+концу|завершается).+день)|((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон))",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.IgnoreCase
+    );
 #if DEBUG
     private const Visibility NormalVisibility = Visibility.Private;
     private const Visibility ImportantVisibility = Visibility.Private;
@@ -221,7 +225,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 
     private Visibility GetVisibility(string? title, string body)
     {
-        if (title is { Length: > 0 } && title.Contains("Подходит к концу", StringComparison.OrdinalIgnoreCase))
+        if (title is { Length: > 0 } && Important.IsMatch(title))
             return ImportantVisibility;
         return NormalVisibility;
     }
