@@ -152,7 +152,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                 case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
                 {
                     Log.Debug($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
-                    var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
+                    var link = await Client.Channels_ExportMessageLink(channel, u.message.ID, ((Message)u.message).flags.HasFlag(Message.Flags.has_grouped_id)).ConfigureAwait(false);
                     Push(new(TgEventType.Edit, new((Message)u.message), u.pts, link.link));
                     break;
                 }
