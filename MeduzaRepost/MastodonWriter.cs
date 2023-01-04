@@ -15,13 +15,13 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         @"^(?<junk>\s*ДАННОЕ\s+СООБЩЕНИЕ\b.+\bВЫПОЛНЯЮЩИМ\s+ФУНКЦИИ\s+ИНОСТРАННОГО\s+АГЕНТА?(\.|\s)*)$",
         RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture
     );
-    internal static readonly Regex Important = new(@"""
-            (?<important>(
-            (подходит\\s+к\\s+концу|завершается).+день)
-            |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон)
-            |(главные\\s+(фото(графии)?|события))
-            )
-            """,
+    internal static readonly Regex Important = new("""
+                (?<important>(
+                    ((подходит\s+к\s+концу|завершается).+день)
+                    |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон)
+                    |(главные\s+(фото(графии)?|события))
+                ))
+                """,
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace
     );
     

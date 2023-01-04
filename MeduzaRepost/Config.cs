@@ -32,7 +32,7 @@ public static class Config
         LoggerFactory = new NLogLoggerFactory();
         Log.Info("Log path: " + CurrentLogPath);
         config = new ConfigurationBuilder().AddUserSecrets(Assembly.GetExecutingAssembly()).Build();
-        if (Assembly.GetEntryAssembly()?.GetCustomAttribute<UserSecretsIdAttribute>() is not UserSecretsIdAttribute attribute)
+        if (Assembly.GetExecutingAssembly().GetCustomAttribute<UserSecretsIdAttribute>() is not UserSecretsIdAttribute attribute)
             throw new InvalidOperationException("Failed to find UserSecretsId attribute");
 
         secretsPath = Path.GetDirectoryName(PathHelper.GetSecretsPathFromSecretsId(attribute.UserSecretsId))!;
@@ -47,7 +47,7 @@ public static class Config
     public static string? Get(string param) => param switch
     {
         "session_pathname" => Path.Combine(secretsPath, "WTSession.bin"),
-        "app_version" => "1.0.0",
+        "app_version" => "1.0.1",
         "session_key" => null,
         "user_id" => null,
         "server_address" => null,

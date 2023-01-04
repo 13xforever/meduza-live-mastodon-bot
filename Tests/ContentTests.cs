@@ -55,4 +55,12 @@ public class ContentTests
         Assert.That(start, Is.EqualTo("asdf qwer weri"));
         Assert.That(end, Is.EqualTo(""));
     }
+
+    [TestCase("Завершается триста пятнадцатый день полномасштабной войны")]
+    public void ImportantTest(string title)
+    {
+        var matches = MastodonWriter.Important.Matches(title);
+        Assert.That(matches.Count, Is.GreaterThan(0));
+        Assert.That(MastodonWriter.Important.IsMatch(title));
+    }
 }
