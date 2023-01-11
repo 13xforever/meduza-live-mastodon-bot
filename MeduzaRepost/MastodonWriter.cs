@@ -280,6 +280,16 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 
     private List<string> Reduce(List<string> paragraphs, string link)
     {
+        if (paragraphs.Count > 1)
+        {
+            for (var i = paragraphs.Count - 1; i > 1; i--)
+                if (paragraphs[i - 1].StartsWith("http") && paragraphs[i - 1].StartsWith(paragraphs[i]))
+                {
+                    paragraphs.RemoveAt(i - 1);
+                    break;
+                }
+        }
+        
         var max = maxLength - linkReserved - link.Length - 4;
         if (GetSumLength(paragraphs) < max)
         {
