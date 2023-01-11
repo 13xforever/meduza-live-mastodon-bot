@@ -20,6 +20,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     ((подходит\s+к\s+концу|завершается).+день)
                     |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон)
                     |(главные\s+(фото(графии)?|события))
+                    |(призыв|мобилизаци[ия])
                 ))
                 """,
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace
