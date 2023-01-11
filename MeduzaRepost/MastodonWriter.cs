@@ -283,7 +283,9 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         if (paragraphs.Count > 1)
         {
             for (var i = paragraphs.Count - 1; i > 1; i--)
-                if (paragraphs[i - 1].StartsWith("http") && paragraphs[i - 1].StartsWith(paragraphs[i]))
+                if (paragraphs[i - 1].StartsWith("http")
+                    && paragraphs[i - 1].StartsWith(paragraphs[i])
+                    && paragraphs[i] is {Length: >10})
                 {
                     paragraphs.RemoveAt(i - 1);
                     break;
