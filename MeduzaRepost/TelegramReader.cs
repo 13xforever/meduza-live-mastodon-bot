@@ -119,7 +119,12 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                 case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
                 {
                     Log.Debug($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
-                    var msg = (Message)u.message;
+                    if (u.message is not Message msg)
+                    {
+                        Log.Warn($"Invalid message type {u.message.GetType().Name} in {nameof(UpdateNewMessage)}, skipping");
+                        return;
+                    }
+                    
                     if (u.pts_count > 1)
                         Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
                     if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
@@ -162,7 +167,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                     Push(new(TgEventType.Delete, new(u.messages), u.pts));
                     break;
                 }
-                case UpdatePinnedMessages u:
+                case UpdatePinnedChannelMessages u:
                 {
                     Log.Debug($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
                     Push(new(TgEventType.Pin, new(u.messages), u.pts));
