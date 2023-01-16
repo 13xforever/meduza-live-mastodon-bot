@@ -205,14 +205,19 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                             if (pinState.Value == map.MastodonId)
                                 return;
 
-                            var pin = await client.Unpin(pinState.Value).ConfigureAwait(false);
-                            Log.Info($"Unpinned {pin.Url}");
+                            if (pinState.Value != "0")
+                            {
+                                var pin = await client.Unpin(pinState.Value).ConfigureAwait(false);
+                                pinState.Value = "0";
+                                Log.Info($"Unpinned {pin.Url}");
+                            }
                         }
                         else
                             pinState = db.BotState.Add(new() { Key = "pin_id", Value = "0" }).Entity;
                         var status = await client.Pin(map.MastodonId).ConfigureAwait(false);
+                        pinState.Value = map.MastodonId;
                         Log.Info($"Pinned new message {status.Url}");
-                        pinState.Value = status.Id;
+                        await db.SaveChangesAsync().ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
