@@ -187,9 +187,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         foreach (var observer in subscribers.Keys)
             try
             {
-#if !DEBUG
                 observer.OnNext(evt);
-#endif
             }
             catch (Exception e)
             {

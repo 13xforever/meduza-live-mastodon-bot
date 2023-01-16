@@ -262,13 +262,14 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             .Replace("\n\n\n", "\n\n")
             .Split("\n")
             .Select(l => l.Trim())
+            .Where(l => !string.IsNullOrEmpty(l))
             .ToList();
         paragraphs = Reduce(paragraphs, link);
         
         if (paragraphs.Count > 2)
         {
             var title = paragraphs[0];
-            var body = string.Join('\n', paragraphs.Skip(1));
+            var body = string.Join("\n\n", paragraphs.Skip(1));
             return (title, body);
         }
         
@@ -276,7 +277,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         {
             var parts = paragraphs[0].Split('.', 2);
             if (parts.Length == 2)
-                return (parts[0], string.Join('\n', new[]{parts[1].Trim()}.Concat(paragraphs.Skip(1))));
+                return (parts[0], string.Join("\n\n", new[]{parts[1].Trim()}.Concat(paragraphs.Skip(1))));
             return (null, paragraphs[0]);
         }
 
@@ -300,7 +301,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var max = maxLength - linkReserved - link.Length - 4;
         if (GetSumLength(paragraphs) < max)
         {
-            paragraphs.Add($"\n🔗 {link}");
+            paragraphs.Add($"🔗 {link}");
             return paragraphs;
         }
 
