@@ -258,22 +258,20 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         if (message.media is MessageMediaWebPage { webpage: WebPage page })
             text += $"\n\n{page.url}";
         var paragraphs = text
-            .Replace("\n\n\n\n", "\n\n")
-            .Replace("\n\n\n", "\n\n")
             .Split("\n")
             .Select(l => l.Trim())
             .Where(l => !string.IsNullOrEmpty(l))
             .ToList();
         paragraphs = Reduce(paragraphs, link);
         
-        if (paragraphs.Count > 2)
+        if (paragraphs.Count > 1)
         {
             var title = paragraphs[0];
             var body = string.Join("\n\n", paragraphs.Skip(1));
             return (title, body);
         }
         
-        if (paragraphs.Count > 1)
+        if (paragraphs.Count == 1)
         {
             var parts = paragraphs[0].Split('.', 2);
             if (parts.Length == 2)
