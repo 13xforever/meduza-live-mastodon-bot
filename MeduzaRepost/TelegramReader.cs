@@ -104,81 +104,89 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 
     private async Task OnUpdate(IObject arg)
     {
-        if (arg is not UpdatesBase updates)
-            return;
-
-        if (updates.UpdateList.Length > 1)
-            Log.Info($"Received {updates.UpdateList.Length} updates");
-        else
-            Log.Debug($"Received {updates.UpdateList.Length} update");
-        var processedGroups = new HashSet<long>();
-        foreach (var update in updates.UpdateList)
+        try
         {
-            switch (update)
+            if (arg is not UpdatesBase updates)
+                return;
+
+            if (updates.UpdateList.Length > 1)
+                Log.Info($"Received {updates.UpdateList.Length} updates");
+            else
+                Log.Debug($"Received {updates.UpdateList.Length} update");
+            var processedGroups = new HashSet<long>();
+            foreach (var update in updates.UpdateList)
             {
-                case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
+                switch (update)
                 {
-                    Log.Debug($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
-                    if (u.message is not Message msg)
+                    case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
                     {
-                        Log.Warn($"Invalid message type {u.message.GetType().Name} in {nameof(UpdateNewMessage)}, skipping");
-                        return;
-                    }
-                    
-                    if (u.pts_count > 1)
-                        Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
-                    if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
-                    {
-                        if (!processedGroups.Add(msg.grouped_id))
+                        Log.Debug($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
+                        if (u.message is not Message msg)
                         {
-                            Log.Debug($"Skipping message {msg.id} from already processed group {msg.grouped_id}");
-                            continue;
-                        }
-                        
-                        var groupedUpdates = updates.UpdateList
-                            .OfType<UpdateNewMessage>()
-                            .Select(up => (u, m:(Message)up.message))
-                            .Where(t => t.m.flags.HasFlag(Message.Flags.has_grouped_id) && t.m.grouped_id == msg.grouped_id)
-                            .ToList();
-                        var group = new MessageGroup(msg.grouped_id, groupedUpdates.Select(t => t.m).ToList());
-                        var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
-                        Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
-                        Push(new(TgEventType.Post, group, groupedUpdates.Select(t => t.u.pts).Max(), groupLink.link));
-                        if (updates.UpdateList.Length == group.MessageList.Count)
+                            Log.Warn($"Invalid message type {u.message.GetType().Name} in {nameof(UpdateNewMessage)}, skipping");
                             return;
+                        }
+
+                        if (u.pts_count > 1)
+                            Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
+                        if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
+                        {
+                            if (!processedGroups.Add(msg.grouped_id))
+                            {
+                                Log.Debug($"Skipping message {msg.id} from already processed group {msg.grouped_id}");
+                                continue;
+                            }
+
+                            var groupedUpdates = updates.UpdateList
+                                .OfType<UpdateNewMessage>()
+                                .Select(up => (u, m: (Message)up.message))
+                                .Where(t => t.m.flags.HasFlag(Message.Flags.has_grouped_id) && t.m.grouped_id == msg.grouped_id)
+                                .ToList();
+                            var group = new MessageGroup(msg.grouped_id, groupedUpdates.Select(t => t.m).ToList());
+                            var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
+                            Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
+                            Push(new(TgEventType.Post, group, groupedUpdates.Select(t => t.u.pts).Max(), groupLink.link));
+                            if (updates.UpdateList.Length == group.MessageList.Count)
+                                return;
+                        }
+                        else
+                        {
+                            var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
+                            Push(new(TgEventType.Post, new(0, 1, msg), u.pts, link.link));
+                        }
+                        break;
                     }
-                    else
+                    case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
                     {
-                        var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
-                        Push(new(TgEventType.Post, new(0, 1, msg), u.pts, link.link));
+                        Log.Debug($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
+                        var link = await Client.Channels_ExportMessageLink(channel, u.message.ID, ((Message)u.message).flags.HasFlag(Message.Flags.has_grouped_id)).ConfigureAwait(false);
+                        Push(new(TgEventType.Edit, new((Message)u.message), u.pts, link.link));
+                        break;
                     }
-                    break;
-                }
-                case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
-                {
-                    Log.Debug($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
-                    var link = await Client.Channels_ExportMessageLink(channel, u.message.ID, ((Message)u.message).flags.HasFlag(Message.Flags.has_grouped_id)).ConfigureAwait(false);
-                    Push(new(TgEventType.Edit, new((Message)u.message), u.pts, link.link));
-                    break;
-                }
-                case UpdateDeleteMessages u:
-                {
-                    Log.Debug($"Processing DeleteMessage update, pts={u.pts}, count={u.pts_count}");
-                    Push(new(TgEventType.Delete, new(u.messages), u.pts));
-                    break;
-                }
-                case UpdatePinnedChannelMessages u:
-                {
-                    Log.Debug($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
-                    Push(new(TgEventType.Pin, new(u.messages), u.pts));
-                    break;
-                }
-                default:
-                {
-                    Log.Debug($"Ignoring update of type {update.GetType().Name}");
-                    break;
+                    case UpdateDeleteMessages u:
+                    {
+                        Log.Debug($"Processing DeleteMessage update, pts={u.pts}, count={u.pts_count}");
+                        Push(new(TgEventType.Delete, new(u.messages), u.pts));
+                        break;
+                    }
+                    case UpdatePinnedChannelMessages u:
+                    {
+                        Log.Debug($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
+                        Push(new(TgEventType.Pin, new(u.messages), u.pts));
+                        break;
+                    }
+                    default:
+                    {
+                        Log.Debug($"Ignoring update of type {update.GetType().Name}");
+                        break;
+                    }
                 }
             }
+        }
+        catch (Exception e)
+        {
+            Log.Error(e);
+            throw;
         }
     }
 
