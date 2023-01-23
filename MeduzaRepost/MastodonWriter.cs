@@ -196,35 +196,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             }
             case TgEventType.Pin:
             {
-                var msg = evt.Group.MessageList.Last();
-                if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == msg.id) is { MastodonId.Length: > 0 } map)
-                    try
-                    {
-                        if (db.BotState.FirstOrDefault(s => s.Key == "pin_id") is { Value.Length: > 0 } pinState)
-                        {
-                            if (pinState.Value == map.MastodonId)
-                                return;
-
-                            if (pinState.Value != "0")
-                            {
-                                var pin = await client.Unpin(pinState.Value).ConfigureAwait(false);
-                                pinState.Value = "0";
-                                Log.Info($"Unpinned {pin.Url}");
-                            }
-                        }
-                        else
-                            pinState = db.BotState.Add(new() { Key = "pin_id", Value = "0" }).Entity;
-                        var status = await client.Pin(map.MastodonId).ConfigureAwait(false);
-                        pinState.Value = map.MastodonId;
-                        Log.Info($"Pinned new message {status.Url}");
-                        await db.SaveChangesAsync().ConfigureAwait(false);
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Warn(e, $"Failed to pin message {map.MastodonId}");
-                        throw;
-                    }
-                await UpdatePts(evt.pts).ConfigureAwait(false);
+                Log.Warn("Pins are not implemented");
                 break;
             }
             default:
