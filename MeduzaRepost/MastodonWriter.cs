@@ -17,7 +17,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     );
     internal static readonly Regex Important = new("""
                 (?<important>(
-                    ((подходит\s+к\s+концу|завершается).+день)
+                    (^❗)
+                    |((подходит\s+к\s+концу|завершается).+день)
                     |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон)
                     |(главные\s+(фото(графии)?|события))
                     |(призыв|мобилизаци[ия])
