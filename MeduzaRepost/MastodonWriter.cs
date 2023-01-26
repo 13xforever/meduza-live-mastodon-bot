@@ -224,10 +224,10 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             var g = m.Groups["junk"];
             text = text[..(g.Index)] + text[(g.Index + g.Length)..];
         }
-        else
+        /*else
         {
             Log.Warn($"Very sus, couldn't find a junk match in: {text}");
-        }
+        }*/
         if (message.media is MessageMediaWebPage { webpage: WebPage page })
             text += $"\n\n{page.url}";
         var paragraphs = text
