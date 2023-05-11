@@ -95,6 +95,11 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         }
         await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
 
+        Log.Info("Reading telegram pins...");
+        var pins = await Client.Messages_Search<InputMessagesFilterPinned>(channel.ToInputPeer()).ConfigureAwait(false);
+        var pinnedMessages = pins.Messages.Cast<Message>().ToList();
+        Push(new (TgEventType.Pin, new(pinnedMessages), savedPts));
+        
         Log.Info("Listening to live telegram updates...");
         Client.OnUpdate += OnUpdate;
 

@@ -41,6 +41,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private readonly MastodonClient client = new(Config.Get("instance")!, Config.Get("access_token")!);
     private readonly BotDb db = new();
     private readonly ConcurrentQueue<TgEvent> events = new();
+    private readonly ConcurrentDictionary<long, Status> pins = new();
 
     private TelegramReader reader = null!;
     private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize, maxDescriptionLength;
@@ -61,6 +62,14 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         mimeTypes = new(instance.Configuration.MediaAttachments.SupportedMimeTypes);
         maxVideoSize = instance.Configuration.MediaAttachments.VideoSizeLimit;
         maxImageSize = instance.Configuration.MediaAttachments.ImageSizeLimit;
+        
+        Log.Info("Reading mastodon pins...");
+        var pinnedStatusList = await client.GetAccountStatuses(user.Id, pinned: true).ConfigureAwait(false);
+        var pinIds = pinnedStatusList.Select(s => s.Id).ToList();
+        var pinMaps = await db.MessageMaps.Where(m => pinIds.Contains(m.MastodonId)).ToListAsync().ConfigureAwait(false);
+        foreach (var pinMap in pinMaps)
+            pins[pinMap.TelegramId] = pinnedStatusList.First(s => s.Id == pinMap.MastodonId);
+        Log.Info($"Got {pins.Count} pin{(pins.Count == 1 ? "" : "s")}");
 
         while (!Config.Cts.IsCancellationRequested)
         {
@@ -122,6 +131,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     }
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
+#if !DEBUG                    
                     var status = await client.PublishStatus(
                         spoilerText: title,
                         status: body,
@@ -133,6 +143,9 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
                     await UpdatePts(evt.pts).ConfigureAwait(false);
                     Log.Info($"Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
+#else
+                    Log.Info($"Posted new status from {evt.Link}");
+#endif
                 }
                 catch (Exception e)
                 {
@@ -156,6 +169,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 Log.Info($"Status edit did not change visible content, plz implement edit indicator ({evt.Link} → {status.Url})");
                                 continue;
                             }
+#if !DEBUG                            
                             status = await client.EditStatus(
                                 statusId: map.MastodonId,
                                 spoilerText: title,
@@ -163,6 +177,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 mediaIds: status.MediaAttachments.Select(a => a.Id),
                                 language: "ru"
                             ).ConfigureAwait(false);
+#endif
                             Log.Info($"Updated status from {evt.Link} to {status.Url}");
                         }
                     }
@@ -181,9 +196,11 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
                         try
                         {
+#if !DEBUG                             
                             await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
                             db.MessageMaps.Remove(map);
                             await db.SaveChangesAsync().ConfigureAwait(false);
+#endif
                             Log.Info($"Removed status {map.MastodonId}");
                         }
                         catch (Exception e)
@@ -197,7 +214,39 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             }
             case TgEventType.Pin:
             {
-                Log.Warn("Pins are not implemented");
+                var pinList = evt.Group.MessageList.Select(m => (long)m.id).ToList();
+                var toUnpin = pins.Keys.Except(pinList).ToList();
+                var newPins = pinList.Except(pins.Keys).ToList();
+                foreach (var id in toUnpin)
+                {
+                    if (pins.TryRemove(id, out var status))
+                        try
+                        {
+                            await client.Unpin(status.Id).ConfigureAwait(false);
+                            Log.Info($"Unpinned {evt.Link} / {status.Url}");
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Warn(e, $"Failed to unpin {status.Url}");
+                        }
+                    
+                }
+                foreach (var id in newPins)
+                {
+                    if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == id) is { MastodonId.Length: > 0 } map)
+                    {
+                        try
+                        {
+                            var newStatus = await client.Pin(map.MastodonId).ConfigureAwait(false);
+                            pins[id] = newStatus;
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Warn(e, $"Failed to pin {evt.Link} / {map.MastodonId}");
+                        }
+                    }
+                }
+                await UpdatePts(evt.pts).ConfigureAwait(false);
                 break;
             }
             default:
