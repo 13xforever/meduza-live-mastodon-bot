@@ -71,9 +71,9 @@ public static class Config
             ConcurrentWrites = false,
             AutoFlush = false,
             OpenFileFlushTimeout = 1,
-            Layout = "${longdate} ${sequenceid:padding=6} ${level:uppercase=true:padding=-5} ${message} ${onexception:" +
-                     "${newline}${exception:format=ToString}" +
-                     ":when=not contains('${exception:format=ShortType}','TaskCanceledException')}",
+            Layout = "${longdate} ${sequenceid:padding=6} ${level:uppercase=true:padding=-5}" +
+                     "${when:when=logger!='default':inner= [${logger}]} ${message} " +
+                     "${onexception:${newline}${exception:format=ToString}:when=not contains('${exception:format=ShortType}','TaskCanceledException')}",
         };
         var asyncFileTarget = new AsyncTargetWrapper(fileTarget)
         {
@@ -83,15 +83,19 @@ public static class Config
         };
         var consoleTarget = new ColoredConsoleTarget("logconsole")
         {
-            Layout = "${longdate} ${level:uppercase=true:padding=-5} ${message} ${onexception:" +
-                     "${newline}${exception:format=Message}" +
-                     ":when=not contains('${exception:format=ShortType}','TaskCanceledException')}",
+            Layout = "${longdate} ${level:uppercase=true:padding=-5}" +
+                     "${when:when=logger!='default':inner= [${logger}]} ${message} " +
+                     "${onexception:${newline}${exception:format=Message}:when=not contains('${exception:format=ShortType}','TaskCanceledException')}",
         };
 #if DEBUG
         loggingConfig.AddRule(LogLevel.Warn, LogLevel.Fatal, consoleTarget, "spam");
+        loggingConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, consoleTarget, "mastodon"); // only echo messages from default logger to the console
+        loggingConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, consoleTarget, "telegram"); // only echo messages from default logger to the console
         loggingConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, consoleTarget, "default"); // only echo messages from default logger to the console
 #else
         loggingConfig.AddRule(LogLevel.Error, LogLevel.Fatal, consoleTarget, "spam");
+        loggingConfig.AddRule(LogLevel.Info, LogLevel.Fatal, consoleTarget, "telegram");
+        loggingConfig.AddRule(LogLevel.Info, LogLevel.Fatal, consoleTarget, "mastodon");
         loggingConfig.AddRule(LogLevel.Info, LogLevel.Fatal, consoleTarget, "default");
 #endif
         loggingConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, asyncFileTarget);

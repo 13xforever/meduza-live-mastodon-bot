@@ -8,7 +8,7 @@ namespace MeduzaRepost;
 
 public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 {
-    private static readonly ILogger Log = Config.Log;
+    private static readonly ILogger Log = Config.Log.WithPrefix("telegram");
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
     private readonly BotDb db = new();
 

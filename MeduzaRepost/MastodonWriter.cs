@@ -35,7 +35,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private const Visibility ImportantVisibility = Visibility.Public;
 #endif
     
-    private static readonly ILogger Log = Config.Log;
+    private static readonly ILogger Log = Config.Log.WithPrefix("mastodon");
     private static readonly char[] SentenceEndPunctuation = { '.', '!', '?' };
 
     private readonly MastodonClient client = new(Config.Get("instance")!, Config.Get("access_token")!);
