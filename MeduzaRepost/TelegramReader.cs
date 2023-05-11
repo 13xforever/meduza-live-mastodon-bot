@@ -99,6 +99,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         var pins = await Client.Messages_Search<InputMessagesFilterPinned>(channel.ToInputPeer()).ConfigureAwait(false);
         var pinnedMessages = pins.Messages.Cast<Message>().ToList();
         Push(new (TgEventType.Pin, new(pinnedMessages), savedPts));
+        Log.Info($"Got {pinnedMessages.Count} pin{(pinnedMessages.Count == 1 ? "" : "s")}");
         
         Log.Info("Listening to live telegram updates...");
         Client.OnUpdate += OnUpdate;

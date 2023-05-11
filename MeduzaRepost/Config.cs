@@ -19,6 +19,7 @@ public static class Config
     private static readonly string secretsPath;
 
     internal static string CurrentLogPath => Path.GetFullPath("./logs/bot.log");
+    internal static int MaxDescriptionLength => config.GetValue<int>(nameof(MaxDescriptionLength), 1500);
 
     internal static readonly CancellationTokenSource Cts = new();
     internal static readonly ILogger Log, SpamLog;
