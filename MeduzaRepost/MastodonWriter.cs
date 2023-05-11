@@ -56,7 +56,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var user = await client.GetCurrentUser().ConfigureAwait(false);
         Log.Info($"We're logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
         maxLength = instance.Configuration.Statutes.MaxCharacters;
-        maxDescriptionLength = Config.MaxDescriptionLength;
+        maxDescriptionLength = Math.Min(maxLength, Config.MaxDescriptionLength);
         maxAttachments = instance.Configuration.Statutes.MaxMediaAttachments;
         linkReserved = instance.Configuration.Statutes.CharactersReservedPerUrl;
         mimeTypes = new(instance.Configuration.MediaAttachments.SupportedMimeTypes);
