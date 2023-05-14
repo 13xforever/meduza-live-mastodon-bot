@@ -386,7 +386,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             return default;
 
         if (attachmentDescription?.Length > maxDescriptionLength)
-            attachmentDescription = attachmentDescription[..1499].Trim() + "…";
+            attachmentDescription = attachmentDescription[..(maxDescriptionLength-1)].Trim() + "…";
 
         var memStream = Config.MemoryStreamManager.GetStream();
         if (srcImg is not null)
