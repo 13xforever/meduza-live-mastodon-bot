@@ -143,7 +143,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     ).ConfigureAwait(false);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
                     await UpdatePts(evt.pts).ConfigureAwait(false);
-                    Log.Info($"Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
+                    Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
 #else
                     Log.Info($"Posted new status from {evt.Link}");
 #endif
@@ -179,7 +179,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 language: "ru"
                             ).ConfigureAwait(false);
 #endif
-                            Log.Info($"Updated status from {evt.Link} to {status.Url}");
+                            Log.Info($"📝 Updated status from {evt.Link} to {status.Url}");
                         }
                     }
                     catch (Exception e)
@@ -202,7 +202,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                             db.MessageMaps.Remove(map);
                             await db.SaveChangesAsync().ConfigureAwait(false);
 #endif
-                            Log.Info($"Removed status {map.MastodonId}");
+                            Log.Info($"🗑️ Removed status {map.MastodonId}");
                         }
                         catch (Exception e)
                         {
@@ -224,7 +224,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         try
                         {
                             await client.Unpin(status.Id).ConfigureAwait(false);
-                            Log.Info($"Unpinned {evt.Link} / {status.Url}");
+                            Log.Info($"🧹 Unpinned {status.Url}");
                         }
                         catch (Exception e)
                         {
@@ -240,6 +240,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         {
                             var newStatus = await client.Pin(map.MastodonId).ConfigureAwait(false);
                             pins[id] = newStatus;
+                            Log.Info($"📌 Pinned {newStatus.Url}");
                         }
                         catch (Exception e)
                         {
@@ -258,7 +259,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         }
     }
 
-    private Visibility GetVisibility(string? title, string body)
+    private static Visibility GetVisibility(string? title, string body)
     {
         if (title is { Length: > 0 } && Important.IsMatch(title))
             return ImportantVisibility;
