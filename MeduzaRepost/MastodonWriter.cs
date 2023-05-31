@@ -109,14 +109,14 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 {
                     if (db.MessageMaps.AsNoTracking().Any(m => m.TelegramId == evt.Group.MessageList[0].id))
                     {
-                        await UpdatePts(evt.pts).ConfigureAwait(false);
+                        await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                         return;
                     }
 
                     if (evt.Group.MessageList[0] is { message: null or "" } msg && msg.flags.HasFlag(Message.Flags.has_grouped_id))
                     {
                         Log.Debug("Media-only message with a group flag, skipping");
-                        await UpdatePts(evt.pts).ConfigureAwait(false);
+                        await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                         return;
                     }
 
@@ -142,7 +142,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         language: "ru"
                     ).ConfigureAwait(false);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
-                    await UpdatePts(evt.pts).ConfigureAwait(false);
+                    await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                     Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
 #else
                     Log.Info($"Posted new status from {evt.Link}");
@@ -187,7 +187,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         Log.Error(e, $"Failed to update status for {evt.Link}");
                     }
                 }
-                await UpdatePts(evt.pts).ConfigureAwait(false);
+                await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                 break;
             }
             case TgEventType.Delete:
@@ -210,7 +210,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                             throw;
                         }
                 }
-                await UpdatePts(evt.pts).ConfigureAwait(false);
+                await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                 break;
             }
             case TgEventType.Pin:
@@ -248,7 +248,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         }
                     }
                 }
-                await UpdatePts(evt.pts).ConfigureAwait(false);
+                await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                 break;
             }
             default:
@@ -422,16 +422,16 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         return default;
     }
 
-    private async Task UpdatePts(int pts)
+    private async Task UpdatePts(int newPts, int expectedIncrement)
     {
         var state = db.BotState.First(s => s.Key == "pts");
         var savedPts = int.Parse(state.Value!);
-        if (pts != savedPts + 1)
-            Log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {pts}");
-        if (pts > savedPts)
-            state.Value = pts.ToString();
+        if (newPts != savedPts + expectedIncrement)
+            Log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {newPts}");
+        if (newPts > savedPts)
+            state.Value = newPts.ToString();
         else
-            Log.Warn($"Ignoring request to update pts from {savedPts} to {pts}");
+            Log.Warn($"Ignoring request to update pts from {savedPts} to {newPts}");
         await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
     }
 
