@@ -21,7 +21,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     |((начинается|подходит\s+к\s+концу|завершается).+день)
                     |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон)
                     |(главные\s+(фото(графии)?|события))
-                    |(призыв|мобилизаци[ия]|повестк[ауе])
+                    |(призыв|мобилизаци[ия]|повестк[ауе]|воинск\w+\s+уч[её]т)
                 ))
                 """,
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace
