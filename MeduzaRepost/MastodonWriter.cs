@@ -347,6 +347,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private async Task<List<Attachment>> CollectAttachmentsAsync(MessageGroup group)
     {
         var result = new List<Attachment>();
+        string? firstType = null;
         foreach (var m in group.MessageList)
         {
             var info = await GetAttachmentInfoAsync(m).ConfigureAwait(false);
@@ -358,7 +359,11 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 fileName: info.filename,
                 description: info.description
             ).ConfigureAwait(false);
-            Log.Debug($"Uploaded attachment {info.filename} of type {attachment.Type}");
+            if (firstType is null)
+                firstType = attachment.Type;
+            else if (attachment.Type != firstType)
+                return result;
+            
             result.Add(attachment);
             if (result.Count == maxAttachments)
                 break;
