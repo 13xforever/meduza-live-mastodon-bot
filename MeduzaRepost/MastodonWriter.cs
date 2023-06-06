@@ -349,18 +349,28 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var result = new List<Attachment>();
         foreach (var m in group.MessageList)
         {
-            var info = await GetAttachmentInfoAsync(m).ConfigureAwait(false);
-            if (info == default)
-                continue;
-            
-            var attachment = await client.UploadMedia(
-                data: info.data,
-                fileName: info.filename,
-                description: info.description
-            ).ConfigureAwait(false);
-            result.Add(attachment);
+            try
+            {
+                var info = await GetAttachmentInfoAsync(m).ConfigureAwait(false);
+                if (info == default)
+                    continue;
+
+                var attachment = await client.UploadMedia(
+                    data: info.data,
+                    fileName: info.filename,
+                    description: info.description
+                ).ConfigureAwait(false);
+                result.Add(attachment);
+            }
+            catch (ServerErrorException e)
+            {
+                if (e.Message is "Cannot attach a video to a post that already contains images")
+                    return result;
+                
+                throw;
+            }
             if (result.Count == maxAttachments)
-                break;
+                    break;
         }
         return result;
     }
