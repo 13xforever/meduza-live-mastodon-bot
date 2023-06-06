@@ -352,20 +352,30 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         foreach (var m in group.MessageList)
         {
             var info = await GetAttachmentInfoAsync(m).ConfigureAwait(false);
-            if (info == default)
+            if (info == default
+                || info is {doc.video_thumbs: [..]} && info.data.Length > maxVideoSize
+                || info is {doc.thumbs: [..]} && info.data.Length > maxImageSize)
                 continue;
 
-            var attachment = await client.UploadMedia(
-                data: info.data,
-                fileName: info.filename,
-                description: info.description
-            ).ConfigureAwait(false);
-            if (firstType is null)
-                firstType = attachment.Type;
-            else if (attachment.Type != firstType)
-                return result;
-            
-            result.Add(attachment);
+            try
+            {
+                var attachment = await client.UploadMedia(
+                    data: info.data,
+                    fileName: info.filename,
+                    description: info.description
+                ).ConfigureAwait(false);
+                if (firstType is null)
+                    firstType = attachment.Type;
+                else if (attachment.Type != firstType)
+                    continue;
+
+                result.Add(attachment);
+            }
+            catch (ServerErrorException e)
+            {
+                Log.Warn(e, "Failed to upload attachment content");
+                continue;
+            }
             if (result.Count == maxAttachments || firstType is "video")
                 break;
         }
