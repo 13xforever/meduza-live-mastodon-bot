@@ -131,6 +131,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         }
                     }
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
+                    Log.Debug($"Collected {attachments.Count} attachment{(attachments.Count is 1 ? "" : "s")} of types: {string.Join(", ", attachments.Select(a => a.Type))}");
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
 #if !DEBUG                    
                     var status = await client.PublishStatus(
