@@ -366,7 +366,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 return result;
             
             result.Add(attachment);
-            if (result.Count == maxAttachments)
+            if (result.Count == maxAttachments || firstType is "video")
                 break;
         }
         return result;
