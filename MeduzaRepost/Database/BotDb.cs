@@ -32,4 +32,5 @@ internal sealed class MessageMap
     [Key]
     public long TelegramId { get; set; }
     public string MastodonId { get; set; } = null!;
+    public long? Pts { get; set; }
 }

@@ -142,7 +142,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         visibility: GetVisibility(title, body),
                         language: "ru"
                     ).ConfigureAwait(false);
-                    db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id });
+                    db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id, Pts = evt.pts });
                     await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                     Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
 #else
