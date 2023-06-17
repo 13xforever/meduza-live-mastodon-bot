@@ -144,7 +144,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     ).ConfigureAwait(false);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id, Pts = evt.pts });
                     await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
-                    Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
+                    Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")} (+{evt.Group.Expected}/{evt.Group.MessageList.Count})");
 #else
                     Log.Info($"Posted new status from {evt.Link}");
 #endif
