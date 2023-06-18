@@ -144,7 +144,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     ).ConfigureAwait(false);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id, Pts = evt.pts });
                     await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
-                    Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url}{(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")} (+{evt.Group.Expected}/{evt.Group.MessageList.Count})");
+                    Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url} (+{evt.Group.Expected}/{evt.Group.MessageList.Count}){(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
 #else
                     Log.Info($"Posted new status from {evt.Link}");
 #endif
@@ -444,7 +444,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var state = db.BotState.First(s => s.Key == "pts");
         var savedPts = int.Parse(state.Value!);
         if (newPts != savedPts + expectedIncrement)
-            Log.Warn($"Unexpected pts update: saved pts was {savedPts} and new pts is {newPts}");
+            Log.Warn($"Unexpected pts update: saved pts was {savedPts}, expected +{expectedIncrement}={savedPts + expectedIncrement}, but new pts is {newPts}");
         if (newPts > savedPts)
             state.Value = newPts.ToString();
         else
