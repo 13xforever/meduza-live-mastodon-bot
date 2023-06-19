@@ -143,7 +143,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         language: "ru"
                     ).ConfigureAwait(false);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id, Pts = evt.pts });
-                    await UpdatePts(evt.pts, 1).ConfigureAwait(false);
+                    await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                     Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url} (+{evt.Group.Expected}/{evt.pts}){(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
 #else
                     Log.Info($"Posted new status from {evt.Link}");
@@ -442,11 +442,20 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private async Task UpdatePts(int newPts, int expectedIncrement)
     {
         var state = db.BotState.First(s => s.Key == "pts");
+        var expectedState = db.BotState.FirstOrDefault(s => s.Key == "pts-next");
         var savedPts = int.Parse(state.Value!);
-        if (newPts != savedPts + expectedIncrement)
-            Log.Warn($"Unexpected pts update: saved pts was {savedPts}, expected +{expectedIncrement}={savedPts + expectedIncrement}, but new pts is {newPts}");
+        var expectedPts = savedPts + 1;
+        if (expectedState is { Value.Length: > 0 })
+            expectedPts = int.Parse(expectedState.Value);
+        else
+            expectedState = db.BotState.Add(new() { Key = "pts-next", Value = expectedPts.ToString() }).Entity;
+        if (newPts != expectedPts)
+            Log.Warn($"Unexpected pts update: saved pts was {savedPts}, expected {expectedPts}, but new pts is {newPts}");
         if (newPts > savedPts)
+        {
             state.Value = newPts.ToString();
+            expectedState.Value = (newPts + expectedIncrement).ToString();
+        }
         else
             Log.Warn($"Ignoring request to update pts from {savedPts} to {newPts}");
         await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
