@@ -120,7 +120,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             else
                 Log.Debug($"Received {updates.UpdateList.Length} update");
             var processedGroups = new HashSet<long>();
-            foreach (var update in updates.UpdateList)
+            foreach (var update in updates.UpdateList.OrderBy(u => u.GetPts()))
             {
                 switch (update)
                 {
