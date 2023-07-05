@@ -22,6 +22,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон)
                     |(главные\s+(фото(графии)?|события))
                     |(призыв|мобилизаци[ия]|повестк[ауе]|воинск\w+\s+уч[её]т)
+                    |(ЛГБТ\+?|трансгендер)
                 ))
                 """,
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace
