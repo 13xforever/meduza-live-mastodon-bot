@@ -123,7 +123,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 
                     string? replyStatusId = null;
                     msg = evt.Group.MessageList[0];
-                    if (msg.ReplyTo is { reply_to_msg_id: > 0 } replyTo)
+                    if (msg.ReplyTo is MessageReplyHeader { reply_to_msg_id: > 0 } replyTo)
                     {
                         if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
                         {
