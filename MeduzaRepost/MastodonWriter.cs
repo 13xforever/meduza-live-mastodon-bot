@@ -20,7 +20,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     (^❗)
                     |((начинается|подходит\s+к\s+концу|завершается).+день)
                     |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон)
-                    |(главные\s+(фото(графии)?|события))
+                    |(главн[ыо][ем]\s+([ко]\s+)(фото(графи)?|событ|новост|минут|момент))
                     |(призыв|мобилизаци[ия]|повестк[ауе]|воинск\w+\s+уч[её]т)
                     |(ЛГБТ\+?|трансгендер)
                 ))
@@ -47,7 +47,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private TelegramReader reader = null!;
     private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize, maxDescriptionLength;
     private HashSet<string> mimeTypes = null!;
-    //private bool SupportsMarkdown = false;
+    private bool SupportsMarkdown = false;
     
     public async Task Run(TelegramReader telegramReader)
     {
@@ -57,6 +57,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var user = await client.GetCurrentUser().ConfigureAwait(false);
         Log.Info($"We're logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
         maxLength = instance.Configuration.Statutes.MaxCharacters;
+        //SupportsMarkdown = instance.Configuration.Statuses.SupportedMimeTypes?.Any(t => t == "text/markdown") is true;
         maxDescriptionLength = Math.Min(maxLength, Config.MaxDescriptionLength);
         maxAttachments = instance.Configuration.Statutes.MaxMediaAttachments;
         linkReserved = instance.Configuration.Statutes.CharactersReservedPerUrl;
