@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
       <UserSecretsId>495d2b91-1393-470a-87b1-2497b9e8f428</UserSecretsId>
@@ -25,9 +25,7 @@
     </ItemGroup>
 
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>Tests</_Parameter1>
-    </AssemblyAttribute>
+    <InternalsVisibleTo Include="Tests"/>
   </ItemGroup>
 
 </Project>
