@@ -4,7 +4,7 @@ namespace MeduzaRepost;
 
 public class CustomMastodonClient:MastodonClient
 {
-    public string LastErrorResponseContent { get; private set; }
+    public string? LastErrorResponseContent { get; private set; }
     
     public CustomMastodonClient(string instance, string accessToken) : base(instance, accessToken)
     { }

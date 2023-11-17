@@ -48,7 +48,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private TelegramReader reader = null!;
     private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize, maxDescriptionLength;
     private HashSet<string> mimeTypes = null!;
-    private bool SupportsMarkdown = false;
+    //private bool SupportsMarkdown = false;
     
     public async Task Run(TelegramReader telegramReader)
     {
@@ -375,16 +375,10 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 
                 result.Add(attachment);
             }
-            catch (ServerErrorException e)
+            catch (Exception e)
             {
                 Log.Warn(e, "Failed to upload attachment content");
-                Log.Debug(client.LastErrorResponseContent);
-                continue;
-            }
-            catch (JsonReaderException e)
-            {
-                Log.Warn(e, "Couldn't upload attachment");
-                Log.Debug(client.LastErrorResponseContent);
+                Log.Debug($"Response content: {client.LastErrorResponseContent}");
                 continue;
             }
             if (result.Count == maxAttachments || firstType is "video")
