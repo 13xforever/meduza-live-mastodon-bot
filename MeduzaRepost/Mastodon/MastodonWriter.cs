@@ -4,6 +4,7 @@ using Mastonet;
 using Mastonet.Entities;
 using MeduzaRepost.Database;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using NLog;
 using TL;
 
@@ -39,7 +40,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private static readonly ILogger Log = Config.Log.WithPrefix("mastodon");
     private static readonly char[] SentenceEndPunctuation = { '.', '!', '?' };
 
-    private readonly MastodonClient client = new(Config.Get("instance")!, Config.Get("access_token")!);
+    private readonly CustomMastodonClient client = new(Config.Get("instance")!, Config.Get("access_token")!);
     private readonly BotDb db = new();
     private readonly ConcurrentQueue<TgEvent> events = new();
     private readonly ConcurrentDictionary<long, Status> pins = new();
@@ -154,6 +155,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 catch (Exception e)
                 {
                     Log.Error(e, $"Failed to post new status for {evt.Link}");
+                    Log.Debug(client.LastErrorResponseContent);
                     throw;
                 }
                 break;
@@ -376,6 +378,13 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             catch (ServerErrorException e)
             {
                 Log.Warn(e, "Failed to upload attachment content");
+                Log.Debug(client.LastErrorResponseContent);
+                continue;
+            }
+            catch (JsonReaderException e)
+            {
+                Log.Warn(e, "Couldn't upload attachment");
+                Log.Debug(client.LastErrorResponseContent);
                 continue;
             }
             if (result.Count == maxAttachments || firstType is "video")
