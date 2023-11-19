@@ -16,6 +16,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         @"^(?<junk>(\s|«)*ДАННОЕ\s+СООБЩЕНИЕ\b.+\bВЫПОЛНЯЮЩИМ\s+ФУНКЦИИ\s+ИНОСТРАННОГО\s+АГЕНТА?(\.|\s)*)$",
         RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture
     );
+    
     internal static readonly Regex Important = new("""
                 (?<important>(
                     (^❗)
@@ -28,6 +29,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 """,
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace
     );
+
+    private static readonly TimeLimitedQueue PostLimitQueue = new();
     
 #if DEBUG
     private const Visibility NormalVisibility = Visibility.Private;
@@ -266,7 +269,9 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 
     private static Visibility GetVisibility(string? title, string body)
     {
-        if (title is { Length: > 0 } && Important.IsMatch(title))
+        if (title is { Length: > 0 }
+            && Important.IsMatch(title)
+            && PostLimitQueue.TryAdd(DateTime.UtcNow))
             return ImportantVisibility;
         return NormalVisibility;
     }
