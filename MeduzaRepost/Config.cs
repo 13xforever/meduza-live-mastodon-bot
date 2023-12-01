@@ -59,6 +59,7 @@ public static class Config
         "system_lang_code" => null,
         "lang_pack" => null,
         "lang_code" => null,
+        "init_params" => null,
         _ => config.GetValue<string?>(param) ?? InteractiveGet(param),
     };
 

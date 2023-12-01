@@ -17,18 +17,21 @@ public class CustomMastodonClient:MastodonClient
 
     protected override void OnResponseReceived(HttpResponseMessage response)
     {
-        response.Content.LoadIntoBufferAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        if (!response.IsSuccessStatusCode)
+            response.Content.LoadIntoBufferAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         try
         {
             base.OnResponseReceived(response);
         }
-        catch
+        finally
         {
-            using var bufferCopy = new MemoryStream();
-            response.Content.CopyTo(bufferCopy, null, CancellationToken.None);
-            bufferCopy.Seek(0, SeekOrigin.Begin);
-            LastErrorResponseContent = Utf8.GetString(bufferCopy.ToArray());
-            throw;
+            if (!response.IsSuccessStatusCode)
+            {
+                using var bufferCopy = new MemoryStream();
+                response.Content.CopyTo(bufferCopy, null, CancellationToken.None);
+                bufferCopy.Seek(0, SeekOrigin.Begin);
+                LastErrorResponseContent = Utf8.GetString(bufferCopy.ToArray());
+            }
         }
     }
 }

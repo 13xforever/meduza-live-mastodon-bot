@@ -38,7 +38,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             && savedPts > 0)
         {
             // check missed updates
-            Log.Info("Checking missed channel updates...");
+            Log.Info($"Checking missed channel updates since pts {savedPts}...");
             var diffPts = savedPts;
             long lastGroupId = 0;
             while (await Client.Updates_GetChannelDifference(channel, null, diffPts).ConfigureAwait(false) is {} baseDiff)
