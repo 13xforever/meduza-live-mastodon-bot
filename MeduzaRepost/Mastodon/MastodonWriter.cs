@@ -363,7 +363,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             var info = await GetAttachmentInfoAsync(m).ConfigureAwait(false);
             if (info == default
                 || info is {doc.video_thumbs: [..]} && info.data.Length > maxVideoSize
-                || info is {doc.thumbs: [..]} && info.data.Length > maxImageSize)
+                || info is {doc.thumbs: [..]} && info.data.Length > maxImageSize
+                || info.data.Length > Math.Max(maxVideoSize, maxImageSize))
                 continue;
 
             try
