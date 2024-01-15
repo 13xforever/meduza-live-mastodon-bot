@@ -138,15 +138,26 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
                     Log.Debug($"Collected {attachments.Count} attachment{(attachments.Count is 1 ? "" : "s")} of types: {string.Join(", ", attachments.Select(a => a.Type))}");
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
-#if !DEBUG                    
-                    var status = await client.PublishStatus(
-                        spoilerText: title,
-                        status: body,
-                        replyStatusId: replyStatusId,
-                        mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
-                        visibility: GetVisibility(title, body),
-                        language: "ru"
-                    ).ConfigureAwait(false);
+#if !DEBUG
+                    Status? status = null;
+                    do
+                    {
+                        try
+                        {
+                            status = await client.PublishStatus(
+                                spoilerText: title,
+                                status: body,
+                                replyStatusId: replyStatusId,
+                                mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
+                                visibility: GetVisibility(title, body),
+                                language: "ru"
+                            ).ConfigureAwait(false);
+                        }
+                        catch (ServerErrorException e) when (e.Message is "Cannot attach files that have not finished processing. Try again in a moment!")
+                        {
+                            await Task.Delay(TimeSpan.FromMinutes(1)).ConfigureAwait(false);
+                        }
+                    } while (status is null);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id, Pts = evt.pts });
                     await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                     Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url} (+{evt.Group.Expected}/{evt.pts}){(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
@@ -373,6 +384,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     fileName: info.filename,
                     description: info.description
                 ).ConfigureAwait(false);
+                //todo: wait for processing to finish https://docs.joinmastodon.org/methods/media/#206-partial-content
                 if (firstType is null)
                     firstType = attachment.Type;
                 else if (attachment.Type != firstType)
