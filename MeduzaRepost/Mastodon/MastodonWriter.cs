@@ -155,6 +155,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         }
                         catch (ServerErrorException e) when (e.Message is "Cannot attach files that have not finished processing. Try again in a moment!")
                         {
+                            Log.Warn("Waiting for media upload to be processed…");
                             await Task.Delay(TimeSpan.FromMinutes(1)).ConfigureAwait(false);
                         }
                     } while (status is null);
