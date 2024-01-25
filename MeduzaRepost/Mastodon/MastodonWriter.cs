@@ -139,6 +139,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     Log.Debug($"Collected {attachments.Count} attachment{(attachments.Count is 1 ? "" : "s")} of types: {string.Join(", ", attachments.Select(a => a.Type))}");
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
 #if !DEBUG
+                    var tries = 0;
                     Status? status = null;
                     do
                     {
@@ -155,6 +156,9 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         }
                         catch (ServerErrorException e) when (e.Message is "Cannot attach files that have not finished processing. Try again in a moment!")
                         {
+                            if(++tries>15)
+                                throw;
+                            
                             Log.Info("⏳ Waiting for media upload to be processed…");
                             await Task.Delay(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
                         }
