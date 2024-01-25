@@ -149,18 +149,20 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 spoilerText: title,
                                 status: body,
                                 replyStatusId: replyStatusId,
-                                mediaIds: attachments.Count > 0 ? attachments.Select(a => a.Id) : null,
+                                mediaIds: attachments.Count > 0 && tries < 16 ? attachments.Select(a => a.Id) : null,
                                 visibility: GetVisibility(title, body),
                                 language: "ru"
                             ).ConfigureAwait(false);
                         }
                         catch (ServerErrorException e) when (e.Message is "Cannot attach files that have not finished processing. Try again in a moment!")
                         {
-                            if(++tries>15)
-                                throw;
-                            
-                            Log.Info("⏳ Waiting for media upload to be processed…");
-                            await Task.Delay(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+                            if (++tries > 15)
+                                Log.Warn("📵 Failed to post with media attachments");
+                            else
+                            {
+                                Log.Info("⏳ Waiting for media upload to be processed…");
+                                await Task.Delay(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+                            }
                         }
                     } while (status is null);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id, Pts = evt.pts });
