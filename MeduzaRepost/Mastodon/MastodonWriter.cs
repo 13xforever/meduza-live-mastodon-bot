@@ -167,7 +167,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     } while (status is null);
                     db.MessageMaps.Add(new() { TelegramId = msg.id, MastodonId = status.Id, Pts = evt.pts });
                     await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
-                    Log.Info($"🆕 Posted new status from {evt.Link} to {status.Url} (+{evt.Group.Expected}/{evt.pts}){(status.Visibility == ImportantVisibility ? $" ({status.Visibility})" : "")}");
+                    Log.Info($"🆕{GetVisibility(status.Visibility)} Posted new status from {evt.Link} to {status.Url} (+{evt.Group.Expected}/{evt.pts})");
 #else
                     Log.Info($"Posted new status from {evt.Link}");
 #endif
@@ -204,7 +204,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 language: "ru"
                             ).ConfigureAwait(false);
 #endif
-                            Log.Info($"📝 Updated status from {evt.Link} to {status.Url}");
+                            Log.Info($"📝{GetVisibility(status.Visibility)} Updated status from {evt.Link} to {status.Url}");
                         }
                     }
                     catch (Exception e)
@@ -222,12 +222,13 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
                         try
                         {
-#if !DEBUG                             
+#if !DEBUG
+                            var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
                             await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
                             db.MessageMaps.Remove(map);
                             await db.SaveChangesAsync().ConfigureAwait(false);
 #endif
-                            Log.Info($"🗑️ Removed status {map.MastodonId}");
+                            Log.Info($"🗑️{GetVisibility(status.Visibility)} Removed status {map.MastodonId}");
                         }
                         catch (Exception e)
                         {
@@ -249,7 +250,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         try
                         {
                             await client.Unpin(status.Id).ConfigureAwait(false);
-                            Log.Info($"🧹 Unpinned {status.Url}");
+                            Log.Info($"🧹{GetVisibility(status.Visibility)} Unpinned {status.Url}");
                         }
                         catch (Exception e)
                         {
@@ -265,7 +266,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         {
                             var newStatus = await client.Pin(map.MastodonId).ConfigureAwait(false);
                             pins[id] = newStatus;
-                            Log.Info($"📌 Pinned {newStatus.Url}");
+                            Log.Info($"📌{GetVisibility(newStatus.Visibility)} Pinned {newStatus.Url}");
                         }
                         catch (Exception e)
                         {
@@ -489,6 +490,16 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             Log.Warn($"Ignoring request to update pts from {savedPts} to {newPts}");
         await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
     }
+
+    private static string GetVisibility(Visibility v)
+        => v switch
+        {
+            Visibility.Public => "🌍", // 🌐
+            Visibility.Unlisted => "🔓",
+            Visibility.Private => "👥", // 🔒
+            Visibility.Direct => "✉️",
+            _ => ""
+        };
 
     private static int GetSumLength(List<string> paragraphs) => paragraphs.Sum(p => p.Length) + (paragraphs.Count - 1) * 2;
 
