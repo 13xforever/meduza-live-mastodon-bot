@@ -4,7 +4,7 @@ using MeduzaRepost.Database;
 
 static void Restart()
 {
-    Config.Log.Info("Restarting…");
+    Config.Log.Info("♻️ Restarting…");
     var psi = new ProcessStartInfo("dotnet", "run -c Release");
     using (Process.Start(psi)) Environment.Exit(-1);
 }
