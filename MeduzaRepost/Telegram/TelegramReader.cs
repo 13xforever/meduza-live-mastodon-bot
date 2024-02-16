@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using MeduzaRepost.Database;
 using NLog;
+using NLog.Fluent;
 using TL;
 using WTelegram;
 
@@ -15,8 +16,15 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     private Channel channel = null!;
     internal readonly Client Client = new(Config.Get);
 
-    static TelegramReader() => Helpers.Log = (level, message) => Config.SpamLog.Log(LogLevel.FromOrdinal(level), message);
-    
+    static TelegramReader() => Helpers.Log = OnTelegramLog;
+
+    private static void OnTelegramLog(int level, string message)
+    {
+        Config.SpamLog.Log(LogLevel.FromOrdinal(level), message);
+        if (message.Contains("MESSAGE_ID_INVALID"))
+            Config.Cts.Cancel();
+    }
+
     public async Task Run()
     {
         Log.Info("Trying to log into telegram account...");
