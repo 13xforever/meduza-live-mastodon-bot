@@ -182,6 +182,14 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             }
             case TgEventType.Edit:
             {
+                var state = db.BotState.First(s => s.Key == "pts");
+                if (state.Value is { Length: > 0 } pstVal
+                    && evt.pts < int.Parse(pstVal))
+                {
+                    Log.Debug($"Ignoring status update with pts {evt.pts}: current pts is {pstVal}");
+                    return;
+                }
+                
                 foreach (var message in evt.Group.MessageList)
                 {
                     try
