@@ -58,7 +58,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         Log.Info("Trying to get mastodon information...");
         var instance = await client.GetInstanceV2().ConfigureAwait(false);
         var user = await client.GetCurrentUser().ConfigureAwait(false);
-        Log.Info($"We're logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
+        Log.Info($"We are logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
         maxLength = instance.Configuration.Statutes.MaxCharacters;
         //SupportsMarkdown = instance.Configuration.Statutes.SupportedMimeTypes?.Any(t => t == "text/markdown") is true;
         maxDescriptionLength = Math.Min(maxLength, Config.MaxDescriptionLength);
