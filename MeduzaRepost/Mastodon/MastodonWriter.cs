@@ -230,8 +230,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
                         try
                         {
-#if !DEBUG
                             var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
+#if !DEBUG
                             await client.DeleteStatus(map.MastodonId).ConfigureAwait(false);
                             db.MessageMaps.Remove(map);
                             await db.SaveChangesAsync().ConfigureAwait(false);
