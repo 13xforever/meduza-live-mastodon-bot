@@ -110,7 +110,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         Log.Info($"Got {pinnedMessages.Count} pin{(pinnedMessages.Count == 1 ? "" : "s")}");
         
         Log.Info("Listening to live telegram updates...");
-        Client.OnUpdates += OnUpdate;
+        Client.OnUpdate += OnUpdate;
 
         while (!Config.Cts.IsCancellationRequested)
             await Task.Delay(200).ConfigureAwait(false);
