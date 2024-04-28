@@ -138,6 +138,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
                     Log.Debug($"Collected {attachments.Count} attachment{(attachments.Count is 1 ? "" : "s")} of types: {string.Join(", ", attachments.Select(a => a.Type))}");
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
+                    var visibility = GetVisibility(title, body);
 #if !DEBUG
                     var tries = 0;
                     Status? status = null;
@@ -150,7 +151,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 status: body,
                                 replyStatusId: replyStatusId,
                                 mediaIds: attachments.Count > 0 && tries < 16 ? attachments.Select(a => a.Id) : null,
-                                visibility: GetVisibility(title, body),
+                                visibility: visibility,
                                 language: "ru"
                             ).ConfigureAwait(false);
                         }
