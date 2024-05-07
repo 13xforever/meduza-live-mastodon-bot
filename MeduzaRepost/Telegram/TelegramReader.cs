@@ -110,7 +110,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         Log.Info($"Got {pinnedMessages.Count} pin{(pinnedMessages.Count == 1 ? "" : "s")}");
         
         Log.Info("Listening to live telegram updates...");
-        Client.OnUpdate += OnUpdate;
+        Client.OnUpdates += OnUpdate;
 
         while (!Config.Cts.IsCancellationRequested)
             await Task.Delay(200).ConfigureAwait(false);
@@ -121,7 +121,10 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         try
         {
             if (arg is not UpdatesBase updates)
+            {
+                Log.Debug($"Not an UpdatesBase object: {arg}");
                 return;
+            }
 
             if (updates.UpdateList.Length > 1)
                 Log.Info($"Received {updates.UpdateList.Length} updates");
