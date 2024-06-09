@@ -55,7 +55,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     public async Task Run(TelegramReader telegramReader)
     {
         reader = telegramReader;
-        Log.Info("Trying to get mastodon information...");
+        Log.Info("Trying to get mastodon information…");
         var instance = await client.GetInstanceV2().ConfigureAwait(false);
         var user = await client.GetCurrentUser().ConfigureAwait(false);
         Log.Info($"We are logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
@@ -69,7 +69,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         maxImageSize = instance.Configuration.MediaAttachments.ImageSizeLimit;
         Log.Info($"Limits: description={maxDescriptionLength}, status length={maxLength}, attachments={maxAttachments}");
         
-        Log.Info("Reading mastodon pins...");
+        Log.Info("Reading mastodon pins…");
         var pinnedStatusList = await client.GetAccountStatuses(user.Id, pinned: true).ConfigureAwait(false);
         var pinIds = pinnedStatusList.Select(s => s.Id).ToList();
         var pinMaps = await db.MessageMaps.Where(m => pinIds.Contains(m.MastodonId)).ToListAsync().ConfigureAwait(false);

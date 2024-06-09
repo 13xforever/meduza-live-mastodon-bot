@@ -50,6 +50,9 @@ public class Watchdog: IObserver<TgEvent>, IDisposable
     public void OnNext(TgEvent value)
     {
         if (value.Type is TgEventType.Post or TgEventType.Edit or TgEventType.Delete or TgEventType.Pin)
+        {
             Reset();
+            Config.Log.Debug("Watchdog reset");
+        }
     }
 }

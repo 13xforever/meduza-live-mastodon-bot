@@ -6,7 +6,8 @@ static void Restart()
 {
     Config.Log.Info("♻️ Restarting…");
     var psi = new ProcessStartInfo("dotnet", "run -c Release");
-    using (Process.Start(psi)) Environment.Exit(-1);
+    using (Process.Start(psi))
+        Environment.Exit(-1);
 }
 
 try

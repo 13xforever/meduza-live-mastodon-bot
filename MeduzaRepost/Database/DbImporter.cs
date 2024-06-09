@@ -15,7 +15,7 @@ internal static class DbImporter
     {
         try
         {
-            Config.Log.Debug($"Upgrading {dbContext.GetType().Name} database if needed...");
+            Config.Log.Debug($"Upgrading {dbContext.GetType().Name} database if needed…");
             await dbContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (SqliteException e)
@@ -47,7 +47,7 @@ internal static class DbImporter
             {
                 if (File.Exists(dbName))
                 {
-                    Config.Log.Info($"Found local {dbName}, moving...");
+                    Config.Log.Info($"Found local {dbName}, moving…");
                     if (File.Exists(dbPath))
                     {
                         Config.Log.Error($"{dbPath} already exists, please reslove the conflict manually");

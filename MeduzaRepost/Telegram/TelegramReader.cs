@@ -27,7 +27,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 
     public async Task Run()
     {
-        Log.Info("Trying to log into telegram account...");
+        Log.Info("Trying to log into telegram account…");
         var bot = await Client.LoginUserIfNeeded().ConfigureAwait(false);
         Log.Info($"We are logged in as {bot} (id {bot.id}) on telegram");
         var chats = await Client.Messages_GetAllChats().ConfigureAwait(false);
@@ -46,7 +46,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             && savedPts > 0)
         {
             // check missed updates
-            Log.Info($"Checking missed channel updates since pts {savedPts}...");
+            Log.Info($"Checking missed channel updates since pts {savedPts}…");
             var diffPts = savedPts;
             long lastGroupId = 0;
             while (await Client.Updates_GetChannelDifference(channel, null, diffPts).ConfigureAwait(false) is {} baseDiff)
@@ -103,13 +103,13 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         }
         await db.SaveChangesAsync(Config.Cts.Token).ConfigureAwait(false);
 
-        Log.Info("Reading telegram pins...");
+        Log.Info("Reading telegram pins…");
         var pins = await Client.Messages_Search<InputMessagesFilterPinned>(channel.ToInputPeer()).ConfigureAwait(false);
         var pinnedMessages = pins.Messages.Cast<Message>().ToList();
         Push(new(TgEventType.Pin, new(pinnedMessages), savedPts - pinnedMessages.Count));
         Log.Info($"Got {pinnedMessages.Count} pin{(pinnedMessages.Count == 1 ? "" : "s")}");
         
-        Log.Info("Listening to live telegram updates...");
+        Log.Info("Listening to live telegram updates…");
         Client.OnUpdates += OnUpdate;
 
         while (!Config.Cts.IsCancellationRequested)
