@@ -18,15 +18,9 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 
     private Channel channel = null!;
     internal readonly Client Client = new(Config.Get);
-    internal readonly UpdateManager UpdateManager;
+    private UpdateManager? updateManager;
     
     static TelegramReader() => Helpers.Log = OnTelegramLog;
-
-    public TelegramReader()
-    {
-        UpdateManager = Client.WithUpdateManager(OnUpdate, Path.Combine(StatePath, StatePath));
-        UpdateManager.InactivityThreshold = Config.UpdateFetchThreshold;
-    }
 
     private static void OnTelegramLog(int level, string message)
     {
@@ -122,10 +116,12 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         
         Log.Info("Listening to live telegram updates…");
         //Client.OnUpdates += OnUpdate;
-      
+        updateManager = Client.WithUpdateManager(OnUpdate, Path.Combine(StatePath, StatePath));
+        updateManager.InactivityThreshold = Config.UpdateFetchThreshold;
+
         while (!Config.Cts.IsCancellationRequested)
         {
-            UpdateManager.SaveState(StatePath);
+            updateManager.SaveState(StatePath);
             await Task.Delay(200).ConfigureAwait(false);
         }
     }
@@ -271,7 +267,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 
     public void Dispose()
     {
-        UpdateManager.SaveState(StatePath);
+        updateManager?.SaveState(StatePath);
         foreach (var observer in subscribers.Keys)
             observer.OnCompleted();
         Client.Dispose();
