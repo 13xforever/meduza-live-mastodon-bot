@@ -74,8 +74,8 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                         var link = await Client.Channels_ExportMessageLink(channel, message.id).ConfigureAwait(false);
                         Push(new(TgEventType.Post, new(message), diffPts, link.link));
                     }
-                    foreach (var update in diff.OtherUpdates)
-                        await OnUpdate(update).ConfigureAwait(false);
+                    if (diff.OtherUpdates.Length > 0)
+                        await OnUpdate(diff.OtherUpdates).ConfigureAwait(false);
                     diffPts = diff.pts;
                 }
                 else
@@ -116,22 +116,17 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             await Task.Delay(200).ConfigureAwait(false);
     }
 
-    private async Task OnUpdate(IObject arg)
+    private Task OnUpdate(UpdatesBase updates) => OnUpdate(updates.UpdateList);
+    private async Task OnUpdate(Update[] updates)
     {
         try
         {
-            if (arg is not UpdatesBase updates)
-            {
-                Log.Debug($"Not an UpdatesBase object: {arg}");
-                return;
-            }
-
-            if (updates.UpdateList.Length > 1)
-                Log.Info($"Received {updates.UpdateList.Length} updates");
+            if (updates.Length > 1)
+                Log.Info($"Received {updates.Length} updates");
             else
-                Log.Debug($"Received {updates.UpdateList.Length} update");
+                Log.Debug($"Received {updates.Length} update");
             var processedGroups = new HashSet<long>();
-            foreach (var update in updates.UpdateList.OrderBy(u => u.GetPts()))
+            foreach (var update in updates.OrderBy(u => u.GetPts()))
             {
                 switch (update)
                 {
@@ -154,7 +149,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                                 continue;
                             }
 
-                            var groupedUpdates = updates.UpdateList
+                            var groupedUpdates = updates
                                 .OfType<UpdateNewMessage>()
                                 .Select(up => (u, m: (Message)up.message))
                                 .Where(t => t.m.flags.HasFlag(Message.Flags.has_grouped_id) && t.m.grouped_id == msg.grouped_id)
@@ -163,7 +158,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                             var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
                             Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
                             Push(new(TgEventType.Post, group, groupedUpdates.Select(t => t.u.pts).Max(), groupLink.link));
-                            if (updates.UpdateList.Length == group.MessageList.Count)
+                            if (updates.Length == group.MessageList.Count)
                                 return;
                         }
                         else
