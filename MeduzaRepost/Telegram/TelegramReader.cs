@@ -23,7 +23,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     public TelegramReader()
     {
         UpdateManager = Client.WithUpdateManager(OnUpdate, Path.Combine(StatePath, StatePath));
-        UpdateManager.InactivityThreshold = Config.WatchdogThreshold;
+        UpdateManager.InactivityThreshold = Config.UpdateFetchThreshold;
     }
 
     private static void OnTelegramLog(int level, string message)

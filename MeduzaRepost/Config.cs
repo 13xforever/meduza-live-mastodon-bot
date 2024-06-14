@@ -22,6 +22,7 @@ public static class Config
     internal static int MaxDescriptionLength => config.GetValue(nameof(MaxDescriptionLength), 1500);
     internal static TimeSpan PublicLimiterTimeSpan => config.GetValue(nameof(PublicLimiterTimeSpan), TimeSpan.FromHours(1));
     internal static TimeSpan WatchdogThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromMinutes(30));
+    internal static TimeSpan UpdateFetchThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromMinutes(10));
     internal static int PublicLimiterItemCount => config.GetValue(nameof(PublicLimiterItemCount), 3);
     internal static bool WatchdogEnabled => config.GetValue(nameof(WatchdogEnabled), true);
 
