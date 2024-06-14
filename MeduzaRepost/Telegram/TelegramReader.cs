@@ -13,6 +13,8 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     private static readonly string StatePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "update_manager_state.json");
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
     private readonly BotDb db = new();
+    private readonly ConcurrentQueue<Message> msgGroup = new();
+    private readonly HashSet<long> processedGroupIds = new();
 
     private Channel channel = null!;
     internal readonly Client Client = new(Config.Get);
@@ -147,7 +149,6 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         }
     }
 
-    private readonly ConcurrentQueue<Message> msgGroup = new();
     private async Task OnUpdate(Update update)
     {
         switch (update)
@@ -220,6 +221,14 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         var groupedUpdates = msgGroup.ToList();
         var msg = groupedUpdates[^1];
         var gid = msg.grouped_id;
+        lock (processedGroupIds)
+            if (!processedGroupIds.Add(gid))
+            {
+                Log.Warn($"⚠️ Message group {gid} was already processed before (new group size is {groupedUpdates.Count})");
+                msgGroup.Clear();
+                return;
+            }
+
         var group = new MessageGroup(gid, groupedUpdates);
         var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
         Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
@@ -245,7 +254,6 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             throw;
         }
     }
-
 
     private void Push(TgEvent evt)
     {
