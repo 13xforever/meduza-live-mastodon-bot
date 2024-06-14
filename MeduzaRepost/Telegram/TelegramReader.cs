@@ -38,6 +38,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             return;
         }
 
+        Client.OnOther += OnMiscUpdate;
         // check and init saved pts value if needed
         channel = ch;
         Log.Info($"Reading channel #{channel.ID}: {channel.Title}");
@@ -201,6 +202,22 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             throw;
         }
     }
+    private async Task OnMiscUpdate(IObject arg)
+    {
+        try
+        {
+            if (arg is not ReactorError err)
+                return;
+
+            Log.Error(err.Exception, $"⛔ {err.Exception.Message}");
+        }
+        catch (Exception e)
+        {
+            Log.Error(e);
+            throw;
+        }
+    }
+
 
     private void Push(TgEvent evt)
     {
