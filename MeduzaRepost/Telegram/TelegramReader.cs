@@ -236,14 +236,14 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         msgGroup.Clear();
     }
 
-    private async Task OnMiscUpdate(IObject arg)
+    private Task OnMiscUpdate(IObject arg)
     {
         try
         {
             if (arg is not ReactorError err)
             {
                 Log.Debug($"Ignoring misc update of type {arg.GetType().Name}");
-                return;
+                return Task.CompletedTask;
             }
 
             Log.Error(err.Exception, $"⛔ {err.Exception.Message}");
@@ -253,6 +253,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             Log.Error(e);
             throw;
         }
+        return Task.CompletedTask;
     }
 
     private void Push(TgEvent evt)
