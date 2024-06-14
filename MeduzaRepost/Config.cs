@@ -22,7 +22,7 @@ public static class Config
     internal static int MaxDescriptionLength => config.GetValue(nameof(MaxDescriptionLength), 1500);
     internal static TimeSpan PublicLimiterTimeSpan => config.GetValue(nameof(PublicLimiterTimeSpan), TimeSpan.FromHours(1));
     internal static TimeSpan WatchdogThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromMinutes(30));
-    internal static TimeSpan UpdateFetchThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromMinutes(10));
+    internal static TimeSpan UpdateFetchThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromMinutes(5));
     internal static int PublicLimiterItemCount => config.GetValue(nameof(PublicLimiterItemCount), 3);
     internal static bool WatchdogEnabled => config.GetValue(nameof(WatchdogEnabled), true);
 
@@ -37,7 +37,10 @@ public static class Config
         SpamLog = LogManager.GetLogger("spam");
         LoggerFactory = new NLogLoggerFactory();
         Log.Info("Log path: " + CurrentLogPath);
-        config = new ConfigurationBuilder().AddUserSecrets(Assembly.GetExecutingAssembly()).Build();
+        config = new ConfigurationBuilder()
+            .AddEnvironmentVariables()
+            .AddUserSecrets(Assembly.GetExecutingAssembly())
+            .Build();
         if (Assembly.GetExecutingAssembly().GetCustomAttribute<UserSecretsIdAttribute>() is not UserSecretsIdAttribute attribute)
             throw new InvalidOperationException("Failed to find UserSecretsId attribute");
 
