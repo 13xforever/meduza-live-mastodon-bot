@@ -10,13 +10,21 @@ namespace MeduzaRepost;
 public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 {
     private static readonly ILogger Log = Config.Log.WithPrefix("telegram");
+    private static readonly string StatePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "update_manager_state.json");
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
     private readonly BotDb db = new();
 
     private Channel channel = null!;
     internal readonly Client Client = new(Config.Get);
-
+    internal readonly UpdateManager UpdateManager;
+    
     static TelegramReader() => Helpers.Log = OnTelegramLog;
+
+    public TelegramReader()
+    {
+        UpdateManager = Client.WithUpdateManager(OnUpdate, Path.Combine(StatePath, StatePath));
+        UpdateManager.InactivityThreshold = Config.WatchdogThreshold;
+    }
 
     private static void OnTelegramLog(int level, string message)
     {
@@ -111,10 +119,13 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         Log.Info($"Got {pinnedMessages.Count} pin{(pinnedMessages.Count == 1 ? "" : "s")}");
         
         Log.Info("Listening to live telegram updates…");
-        Client.OnUpdates += OnUpdate;
-
+        //Client.OnUpdates += OnUpdate;
+      
         while (!Config.Cts.IsCancellationRequested)
+        {
+            UpdateManager.SaveState(StatePath);
             await Task.Delay(200).ConfigureAwait(false);
+        }
     }
 
     private Task OnUpdate(UpdatesBase updates) => OnUpdate(updates.UpdateList);
@@ -126,75 +137,8 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                 Log.Info($"Received {updates.Length} updates");
             else
                 Log.Debug($"Received {updates.Length} update");
-            var processedGroups = new HashSet<long>();
             foreach (var update in updates.OrderBy(u => u.GetPts()))
-            {
-                switch (update)
-                {
-                    case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
-                    {
-                        Log.Debug($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
-                        if (u.message is not Message msg)
-                        {
-                            Log.Warn($"Invalid message type {u.message.GetType().Name} in {nameof(UpdateNewMessage)}, skipping");
-                            return;
-                        }
-
-                        if (u.pts_count > 1)
-                            Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
-                        if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
-                        {
-                            if (!processedGroups.Add(msg.grouped_id))
-                            {
-                                Log.Debug($"Skipping message {msg.id} from already processed group {msg.grouped_id}");
-                                continue;
-                            }
-
-                            var groupedUpdates = updates
-                                .OfType<UpdateNewMessage>()
-                                .Select(up => (u, m: (Message)up.message))
-                                .Where(t => t.m.flags.HasFlag(Message.Flags.has_grouped_id) && t.m.grouped_id == msg.grouped_id)
-                                .ToList();
-                            var group = new MessageGroup(msg.grouped_id, groupedUpdates.Select(t => t.m).ToList());
-                            var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
-                            Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
-                            Push(new(TgEventType.Post, group, groupedUpdates.Select(t => t.u.pts).Max(), groupLink.link));
-                            if (updates.Length == group.MessageList.Count)
-                                return;
-                        }
-                        else
-                        {
-                            var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
-                            Push(new(TgEventType.Post, new(0, 1, msg), u.pts, link.link));
-                        }
-                        break;
-                    }
-                    case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
-                    {
-                        Log.Debug($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
-                        var link = await Client.Channels_ExportMessageLink(channel, u.message.ID, ((Message)u.message).flags.HasFlag(Message.Flags.has_grouped_id)).ConfigureAwait(false);
-                        Push(new(TgEventType.Edit, new((Message)u.message), u.pts, link.link));
-                        break;
-                    }
-                    case UpdateDeleteMessages u:
-                    {
-                        Log.Debug($"Processing DeleteMessage update, pts={u.pts}, count={u.pts_count}");
-                        Push(new(TgEventType.Delete, new(u.messages), u.pts));
-                        break;
-                    }
-                    case UpdatePinnedChannelMessages u:
-                    {
-                        Log.Debug($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
-                        Push(new(TgEventType.Pin, new(u.messages), u.pts));
-                        break;
-                    }
-                    default:
-                    {
-                        Log.Debug($"Ignoring update of type {update.GetType().Name}");
-                        break;
-                    }
-                }
-            }
+                await OnUpdate(update).ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -202,12 +146,96 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             throw;
         }
     }
+
+    private readonly ConcurrentQueue<Message> msgGroup = new();
+    private async Task OnUpdate(Update update)
+    {
+        switch (update)
+        {
+            case UpdateNewMessage u when u.message.Peer.ID == channel.ID:
+            {
+                Log.Debug($"Processing NewMessage update, pts={u.pts}, count={u.pts_count}");
+                if (u.message is not Message msg)
+                {
+                    Log.Warn($"Invalid message type {u.message.GetType().Name} in {nameof(UpdateNewMessage)}, skipping");
+                    return;
+                }
+
+                if (u.pts_count > 1)
+                    Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
+                if (!msgGroup.IsEmpty
+                    && (!msg.flags.HasFlag(Message.Flags.has_grouped_id)
+                        || msgGroup.TryPeek(out var gmsg) && gmsg.grouped_id != msg.grouped_id))
+                    await DrainMsgGroupQueueAsync().ConfigureAwait(false);
+                if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
+                {
+                    msgGroup.Enqueue(msg);
+                    Log.Debug($"Adding message {msg.id} to the group queue {msg.grouped_id}");
+                    if (!string.IsNullOrEmpty(msg.message))
+                        await DrainMsgGroupQueueAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    var link = await Client.Channels_ExportMessageLink(channel, u.message.ID).ConfigureAwait(false);
+                    Push(new(TgEventType.Post, new(0, 1, msg), u.pts, link.link));
+                }
+                break;
+            }
+            case UpdateEditMessage u when u.message.Peer.ID == channel.ID:
+            {
+                Log.Debug($"Processing EditMessage update, pts={u.pts}, count={u.pts_count}");
+                var link = await Client.Channels_ExportMessageLink(
+                    channel,
+                    u.message.ID, 
+                    ((Message)u.message).flags.HasFlag(Message.Flags.has_grouped_id)
+                ).ConfigureAwait(false);
+                Push(new(TgEventType.Edit, new((Message)u.message), u.pts, link.link));
+                break;
+            }
+            case UpdateDeleteMessages u:
+            {
+                Log.Debug($"Processing DeleteMessage update, pts={u.pts}, count={u.pts_count}");
+                Push(new(TgEventType.Delete, new(u.messages), u.pts));
+                break;
+            }
+            case UpdatePinnedChannelMessages u:
+            {
+                Log.Debug($"Processing PinnedMessages update, pts={u.pts}, count={u.pts_count}");
+                Push(new(TgEventType.Pin, new(u.messages), u.pts));
+                break;
+            }
+            default:
+            {
+                Log.Debug($"Ignoring update of type {update.GetType().Name}");
+                break;
+            }
+        }
+    }
+
+    private async Task DrainMsgGroupQueueAsync()
+    {
+        if (msgGroup.IsEmpty)
+            throw new InvalidOperationException("Expected at least one message in the group, but got none");
+        
+        var groupedUpdates = msgGroup.ToList();
+        var msg = groupedUpdates[^1];
+        var gid = msg.grouped_id;
+        var group = new MessageGroup(gid, groupedUpdates);
+        var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
+        Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
+        Push(new(TgEventType.Post, group, msg.GetPts(), groupLink.link));
+        msgGroup.Clear();
+    }
+
     private async Task OnMiscUpdate(IObject arg)
     {
         try
         {
             if (arg is not ReactorError err)
+            {
+                Log.Debug($"Ignoring misc update of type {arg.GetType().Name}");
                 return;
+            }
 
             Log.Error(err.Exception, $"⛔ {err.Exception.Message}");
         }
@@ -234,6 +262,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 
     public void Dispose()
     {
+        UpdateManager.SaveState(StatePath);
         foreach (var observer in subscribers.Keys)
             observer.OnCompleted();
         Client.Dispose();

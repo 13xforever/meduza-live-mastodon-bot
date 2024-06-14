@@ -20,11 +20,9 @@ try
     Config.Log.Debug("Creating mastodon writer…");
     using var writer = new MastodonWriter();
 
-    /*
     Config.Log.Debug("Creating watchdog…");
     using var watchdog = new Watchdog(Restart);
     using var watchdogSub = reader.Subscribe(watchdog);
-    */
 
     Config.Log.Debug("Running mastodon writer…");
     var writerTask = writer.Run(reader);
