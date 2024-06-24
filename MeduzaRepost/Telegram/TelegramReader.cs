@@ -10,9 +10,9 @@ namespace MeduzaRepost;
 
 public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 {
-    private static readonly ILogger Log = Config.Log.WithPrefix("telegram");
-    private static readonly ILogger ReaderLog = Config.SpamLog.WithPrefix("telegram_reader");
-    private static readonly ILogger UpdateManagerLog = Config.SpamLog.WithPrefix("telegram_update_manager");
+    private static readonly ILogger Log              = Config.Log    .WithPrefix("telegram");
+    private static readonly ILogger ReaderLog        = Config.SpamLog.WithPrefix("telegram_reader");
+    private static readonly ILogger UpdateManagerLog = Config.SpamLog.WithPrefix("telegram_update");
     private static readonly string StatePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Config.ConfigFolderName, "update_manager_state.json");
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
     private readonly BotDb db = new();
@@ -136,7 +136,9 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             if (sw.Elapsed > Config.UpdateFetchThreshold)
             {
                 updateManager.SaveState(StatePath);
+                UpdateManagerLog.Debug("Calling LoadDialogs…");
                 await updateManager.LoadDialogs(allDialogs).ConfigureAwait(false);
+                sw.Restart();
             }
             await Task.Delay(200).ConfigureAwait(false);
         }
