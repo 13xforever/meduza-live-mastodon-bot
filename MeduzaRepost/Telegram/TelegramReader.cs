@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using MeduzaRepost.Database;
 using NLog;
 using NLog.Fluent;
@@ -10,6 +11,8 @@ namespace MeduzaRepost;
 public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 {
     private static readonly ILogger Log = Config.Log.WithPrefix("telegram");
+    private static readonly ILogger ReaderLog = Config.SpamLog.WithPrefix("telegram_reader");
+    private static readonly ILogger UpdateManagerLog = Config.SpamLog.WithPrefix("telegram_update_manager");
     private static readonly string StatePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "update_manager_state.json");
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
     private readonly BotDb db = new();
@@ -20,11 +23,17 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     internal readonly Client Client = new(Config.Get);
     private UpdateManager? updateManager;
     
-    static TelegramReader() => Helpers.Log = OnTelegramLog;
+    static TelegramReader() => Helpers.Log = OnTelegramReaderLog;
 
-    private static void OnTelegramLog(int level, string message)
+    private static void OnTelegramReaderLog(int level, string message)
+        => OnTelegramLog(ReaderLog, level, message);
+
+    private static void OnUpdateManagerLog(int level, string message)
+        => OnTelegramLog(UpdateManagerLog, level, message);
+    
+    private static void OnTelegramLog(ILogger logger, int level, string message)
     {
-        Config.SpamLog.Log(LogLevel.FromOrdinal(level), message);
+        logger.Log(LogLevel.FromOrdinal(level), message);
         if (message.Contains("MESSAGE_ID_INVALID"))
             Config.Cts.Cancel();
     }
@@ -95,13 +104,13 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         else
         {
             Log.Info("No saved pts value, initializing state");
-            var dialogs = await Client.Messages_GetPeerDialogs(channel.ToInputPeer()).ConfigureAwait(false);
-            if (dialogs.dialogs is not [Dialog dialog] || dialog.Peer.ID != channel.ID)
+            var peerDialogs = await Client.Messages_GetPeerDialogs(channel.ToInputPeer()).ConfigureAwait(false);
+            if (peerDialogs.dialogs is not [Dialog dialog] || dialog.Peer.ID != channel.ID)
             {
                 Log.Error("Failed to fetch current channel status");
                 return;
             }
-
+            
             savedPts = dialog.pts;
             Log.Info($"Got initial pts value: {savedPts}");
             db.BotState.Add(new() { Key = "pts", Value = savedPts.ToString() });
@@ -117,11 +126,18 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         Log.Info("Listening to live telegram updates…");
         //Client.OnUpdates += OnUpdate;
         updateManager = Client.WithUpdateManager(OnUpdate, Path.Combine(StatePath, StatePath));
+        updateManager.Log = OnUpdateManagerLog;
         updateManager.InactivityThreshold = Config.UpdateFetchThreshold;
 
+        var allDialogs = await Client.Messages_GetAllDialogs().ConfigureAwait(false);
+        var sw = Stopwatch.StartNew();
         while (!Config.Cts.IsCancellationRequested)
         {
-            updateManager.SaveState(StatePath);
+            if (sw.Elapsed > Config.UpdateFetchThreshold)
+            {
+                updateManager.SaveState(StatePath);
+                await updateManager.LoadDialogs(allDialogs).ConfigureAwait(false);
+            }
             await Task.Delay(200).ConfigureAwait(false);
         }
     }
