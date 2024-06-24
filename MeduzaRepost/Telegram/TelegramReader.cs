@@ -16,7 +16,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     private static readonly string StatePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "update_manager_state.json");
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
     private readonly BotDb db = new();
-    private readonly ConcurrentQueue<Message> msgGroup = new();
+    private readonly ConcurrentQueue<(Message msg, int pts)> msgGroup = new();
     private readonly HashSet<long> processedGroupIds = new();
 
     private Channel channel = null!;
@@ -178,11 +178,11 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                     Log.Warn($"Got update with large pts_count {u.pts_count} for message {u.message.ID}, group id {msg.grouped_id}");
                 if (!msgGroup.IsEmpty
                     && (!msg.flags.HasFlag(Message.Flags.has_grouped_id)
-                        || msgGroup.TryPeek(out var gmsg) && gmsg.grouped_id != msg.grouped_id))
+                        || msgGroup.TryPeek(out var itm) && itm.msg.grouped_id != msg.grouped_id))
                     await DrainMsgGroupQueueAsync().ConfigureAwait(false);
                 if (msg.flags.HasFlag(Message.Flags.has_grouped_id))
                 {
-                    msgGroup.Enqueue(msg);
+                    msgGroup.Enqueue((msg, u.pts));
                     Log.Debug($"Adding message {msg.id} to the group queue {msg.grouped_id}");
                     if (!string.IsNullOrEmpty(msg.message))
                         await DrainMsgGroupQueueAsync().ConfigureAwait(false);
@@ -231,7 +231,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             throw new InvalidOperationException("Expected at least one message in the group, but got none");
         
         var groupedUpdates = msgGroup.ToList();
-        var msg = groupedUpdates[^1];
+        var (msg, pts) = groupedUpdates[^1];
         var gid = msg.grouped_id;
         lock (processedGroupIds)
             if (!processedGroupIds.Add(gid))
@@ -241,10 +241,10 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                 return;
             }
 
-        var group = new MessageGroup(gid, groupedUpdates);
+        var group = new MessageGroup(gid, groupedUpdates.Select(i => i.msg).ToList());
         var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
         Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
-        Push(new(TgEventType.Post, group, msg.GetPts(), groupLink.link));
+        Push(new(TgEventType.Post, group, pts, groupLink.link));
         msgGroup.Clear();
     }
 
