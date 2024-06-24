@@ -19,6 +19,7 @@ public static class Config
     private static readonly string secretsPath;
 
     internal static string CurrentLogPath => Path.GetFullPath("./logs/bot.log");
+    internal static string ConfigFolderName => config.GetValue(nameof(ConfigFolderName), "meduza-bot");
     internal static int MaxDescriptionLength => config.GetValue(nameof(MaxDescriptionLength), 1500);
     internal static TimeSpan PublicLimiterTimeSpan => config.GetValue(nameof(PublicLimiterTimeSpan), TimeSpan.FromHours(1));
     internal static TimeSpan WatchdogThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromHours(8));

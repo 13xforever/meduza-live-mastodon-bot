@@ -29,7 +29,7 @@ internal static class DbImporter
     
     internal static string GetDbPath(string dbName, Environment.SpecialFolder desiredFolder)
     {
-        var settingsFolder = Path.Combine(Environment.GetFolderPath(desiredFolder), "meduza-bot");
+        var settingsFolder = Path.Combine(Environment.GetFolderPath(desiredFolder), Config.ConfigFolderName);
         try
         {
             if (!Directory.Exists(settingsFolder))
