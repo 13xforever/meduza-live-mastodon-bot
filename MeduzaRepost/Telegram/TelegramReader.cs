@@ -129,7 +129,6 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         updateManager.Log = OnUpdateManagerLog;
         updateManager.InactivityThreshold = Config.UpdateFetchThreshold;
 
-        //var allDialogs = await Client.Messages_GetAllDialogs().ConfigureAwait(false);
         var sw = Stopwatch.StartNew();
         while (!Config.Cts.IsCancellationRequested)
         {
@@ -137,9 +136,10 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             {
                 updateManager.SaveState(StatePath);
                 UpdateManagerLog.Debug("Calling LoadDialogs…");
-                //await updateManager.LoadDialogs(allDialogs).ConfigureAwait(false);
                 if (await Client.Updates_GetChannelDifference(channel, null, savedPts).ConfigureAwait(false) is { NewMessages.Length: > 0 } msgDiff)
                     UpdateManagerLog.Debug($"Found {msgDiff.NewMessages.Length} new message{(msgDiff.NewMessages.Length == 1 ? "" : "s")}");
+                var allDialogs = await Client.Messages_GetAllDialogs().ConfigureAwait(false);
+                await updateManager.LoadDialogs(allDialogs).ConfigureAwait(false);
                 sw.Restart();
             }
             await Task.Delay(200).ConfigureAwait(false);
