@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using MeduzaRepost;
 using MeduzaRepost.Database;
+using TL;
+using Config = MeduzaRepost.Config;
 
 static void Restart()
 {
@@ -37,5 +39,11 @@ try
 }
 catch (OperationCanceledException)
 {
+    Restart();
+}
+catch (RpcException e)
+{
+    Config.Log.Fatal(e);
+    await Task.Delay(TimeSpan.FromSeconds(30));
     Restart();
 }
