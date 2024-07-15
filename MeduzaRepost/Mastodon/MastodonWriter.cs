@@ -6,6 +6,7 @@ using MeduzaRepost.Database;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using TL;
+using Poll = TL.Poll;
 
 namespace MeduzaRepost;
 
@@ -126,18 +127,36 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     }
 
                     string? replyStatusId = null;
-                    msg = evt.Group.MessageList[0];
-                    if (msg.ReplyTo is MessageReplyHeader { reply_to_msg_id: > 0 } replyTo)
+                    msg = evt.Group.MessageList.FirstOrDefault(m => m.message is {Length: >0}) ?? evt.Group.MessageList[0];
+                    if (msg.ReplyTo is MessageReplyHeader { reply_to_msg_id: > 0 } replyTo
+                        && db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
                     {
-                        if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == replyTo.reply_to_msg_id) is { MastodonId.Length: > 0 } map)
-                        {
-                            replyStatusId = map.MastodonId;
-                            Log.Debug($"Trying to reply to {replyStatusId}");
-                        }
+                        replyStatusId = map.MastodonId;
+                        Log.Debug($"Trying to reply to {replyStatusId}");
                     }
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
                     Log.Debug($"Collected {attachments.Count} attachment{(attachments.Count is 1 ? "" : "s")} of types: {string.Join(", ", attachments.Select(a => a.Type))}");
                     var (title, body) = FormatTitleAndBody(msg, evt.Link);
+                    PollParameters? poll = null;
+                    if (msg.media is MessageMediaPoll { poll: { } tgPoll })
+                        try
+                        {
+                            poll = new PollParameters
+                            {
+                                Multiple = tgPoll.flags.HasFlag(Poll.Flags.multiple_choice),
+                                Options = tgPoll.answers.Select(a => a.text.text).ToArray(),
+                            };
+                            if (tgPoll.flags.HasFlag(Poll.Flags.closed))
+                                poll.ExpiresIn = TimeSpan.FromHours(1);
+                            else if (tgPoll.flags.HasFlag(Poll.Flags.has_close_date))
+                                poll.ExpiresIn = tgPoll.close_date - DateTime.UtcNow;
+                            else if (tgPoll.flags.HasFlag(Poll.Flags.has_close_period))
+                                poll.ExpiresIn = TimeSpan.FromSeconds(tgPoll.close_period);
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Error(e, "Failed to collect poll data");
+                        }
                     var visibility = GetVisibility(title, body);
 #if !DEBUG
                     var tries = 0;
@@ -151,6 +170,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 status: body,
                                 replyStatusId: replyStatusId,
                                 mediaIds: attachments.Count > 0 && tries < 16 ? attachments.Select(a => a.Id) : null,
+                                poll: poll,
                                 visibility: visibility,
                                 language: "ru"
                             ).ConfigureAwait(false);
@@ -245,7 +265,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         catch (Exception e)
                         {
                             Log.Warn(e, "Failed to delete status");
-                            throw;
+                            if (e is not ServerErrorException {Message: "Record not found"})
+                                throw;
                         }
                 }
                 await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
@@ -256,6 +277,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 var pinList = evt.Group.MessageList.Select(m => (long)m.id).ToList();
                 var toUnpin = pins.Keys.Except(pinList).ToList();
                 var newPins = pinList.Except(pins.Keys).ToList();
+#if !DEBUG
                 foreach (var id in toUnpin)
                 {
                     if (pins.TryRemove(id, out var status))
@@ -286,6 +308,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         }
                     }
                 }
+#endif
                 await UpdatePts(evt.pts, evt.Group.Expected).ConfigureAwait(false);
                 break;
             }
@@ -321,6 +344,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         }*/
         if (message.media is MessageMediaWebPage { webpage: WebPage page })
             text += $"\n\n{page.url}";
+        else if (message.media is MessageMediaPoll { poll: { } poll })
+            text = poll.question.text;
         var paragraphs = text
             .Split("\n")
             .Select(l => l.Trim())

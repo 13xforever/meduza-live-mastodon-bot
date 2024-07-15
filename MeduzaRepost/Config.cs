@@ -15,6 +15,8 @@ namespace MeduzaRepost;
 
 public static class Config
 {
+    private const string Version = "1.0.8";
+    
     private static readonly IConfigurationRoot config;
     private static readonly string secretsPath;
 
@@ -57,7 +59,7 @@ public static class Config
     public static string? Get(string param) => param switch
     {
         "session_pathname" => Path.Combine(secretsPath, "WTSession.bin"),
-        "app_version" => "1.0.7",
+        "app_version" => Version,
         "session_key" => null,
         "user_id" => null,
         "server_address" => null,
