@@ -173,7 +173,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         {
                             Log.Error(e, "Failed to collect poll data");
                         }
-                    var visibility = GetVisibility(title, body);
+                    var visibility = GetVisibility(title, body, poll);
 #if !DEBUG
                     var tries = 0;
                     Status? status = null;
@@ -336,10 +336,10 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         }
     }
 
-    private static Visibility GetVisibility(string? title, string body)
+    private static Visibility GetVisibility(string? title, string body, PollParameters? poll)
     {
         if (title is { Length: > 0 }
-            && Important.IsMatch(title)
+            && (Important.IsMatch(title) || poll is {ExpiresIn.TotalMinutes: >20})
             && PostLimitQueue.TryAdd(DateTime.UtcNow))
             return ImportantVisibility;
         return NormalVisibility;
