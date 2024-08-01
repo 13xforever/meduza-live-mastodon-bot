@@ -49,7 +49,10 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private readonly ConcurrentDictionary<long, Status> pins = new();
 
     private TelegramReader reader = null!;
-    private int maxLength, maxAttachments, linkReserved, maxVideoSize, maxImageSize, maxDescriptionLength;
+    private int maxLength, maxAttachments, maxVideoSize, maxImageSize,
+        maxDescriptionLength, maxPollChoiceCount, maxPollChoiceLength,
+        linkReservedLength;
+    private TimeSpan minPollTime, maxPollTime;
     private HashSet<string> mimeTypes = null!;
     //private bool SupportsMarkdown = false;
     
@@ -60,14 +63,21 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var instance = await client.GetInstanceV2().ConfigureAwait(false);
         var user = await client.GetCurrentUser().ConfigureAwait(false);
         Log.Info($"We are logged in as {user.UserName} (#{user.Id}) on {client.Instance}");
-        maxLength = instance.Configuration.Statutes.MaxCharacters;
+        var statusLimits = instance.Configuration.Statutes;
+        var mediaLimits = instance.Configuration.MediaAttachments;
+        var pollLimits = instance.Configuration.Polls;
+        maxLength = statusLimits.MaxCharacters;
         //SupportsMarkdown = instance.Configuration.Statutes.SupportedMimeTypes?.Any(t => t == "text/markdown") is true;
         maxDescriptionLength = Math.Min(maxLength, Config.MaxDescriptionLength);
-        maxAttachments = instance.Configuration.Statutes.MaxMediaAttachments;
-        linkReserved = instance.Configuration.Statutes.CharactersReservedPerUrl;
-        mimeTypes = new(instance.Configuration.MediaAttachments.SupportedMimeTypes);
-        maxVideoSize = instance.Configuration.MediaAttachments.VideoSizeLimit;
-        maxImageSize = instance.Configuration.MediaAttachments.ImageSizeLimit;
+        maxAttachments = statusLimits.MaxMediaAttachments;
+        linkReservedLength = statusLimits.CharactersReservedPerUrl;
+        mimeTypes = [..mediaLimits.SupportedMimeTypes];
+        maxVideoSize = mediaLimits.VideoSizeLimit;
+        maxImageSize = mediaLimits.ImageSizeLimit;
+        maxPollChoiceCount = pollLimits.MaxOptions;
+        maxPollChoiceLength = pollLimits.MaxCharactersPerOption;
+        minPollTime = TimeSpan.FromSeconds(pollLimits.MinExpiration);
+        maxPollTime = TimeSpan.FromSeconds(pollLimits.MaxExpiration);
         Log.Info($"Limits: description={maxDescriptionLength}, status length={maxLength}, attachments={maxAttachments}");
         
         Log.Info("Reading mastodon pins…");
@@ -144,7 +154,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                             poll = new PollParameters
                             {
                                 Multiple = tgPoll.flags.HasFlag(Poll.Flags.multiple_choice),
-                                Options = tgPoll.answers.Select(a => a.text.text).ToArray(),
+                                Options = tgPoll.answers.Select(a => a.text.text.Trim(50)).ToArray(),
+                                ExpiresIn = minPollTime
                             };
                             if (tgPoll.flags.HasFlag(Poll.Flags.closed))
                                 poll.ExpiresIn = TimeSpan.FromHours(1);
@@ -152,6 +163,11 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 poll.ExpiresIn = tgPoll.close_date - DateTime.UtcNow;
                             else if (tgPoll.flags.HasFlag(Poll.Flags.has_close_period))
                                 poll.ExpiresIn = TimeSpan.FromSeconds(tgPoll.close_period);
+                            poll.ExpiresIn = TimeSpan.FromSeconds(
+                                Math.Max(
+                                    Math.Min(poll.ExpiresIn.TotalSeconds, maxPollTime.TotalSeconds),
+                                    minPollTime.TotalSeconds
+                                ));
                         }
                         catch (Exception e)
                         {
@@ -385,7 +401,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 }
         }
         
-        var max = maxLength - linkReserved - link.Length - 4;
+        var max = maxLength - linkReservedLength - link.Length - 4;
         if (GetSumLength(paragraphs) < max)
         {
             paragraphs.Add($"🔗 {link}");
