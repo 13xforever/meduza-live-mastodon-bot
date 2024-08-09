@@ -188,8 +188,20 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                 {
                     msgGroup.Enqueue((msg, u.pts));
                     Log.Debug($"Adding message {msg.id} to the group queue {msg.grouped_id}");
-                    if (!string.IsNullOrEmpty(msg.message))
-                        await DrainMsgGroupQueueAsync().ConfigureAwait(false);
+                    var gid = msg.grouped_id;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(10_000).ConfigureAwait(false);
+                            Log.Debug($"Draining message queue for group {gid}…");
+                            await DrainMsgGroupQueueAsync(gid).ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Error(e, "Error while processing the delayed task");
+                        }
+                    });
                 }
                 else
                 {
@@ -231,17 +243,27 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
 
     private async Task DrainMsgGroupQueueAsync()
     {
-        if (msgGroup.IsEmpty)
+        if (msgGroup.IsEmpty || !msgGroup.TryPeek(out var i))
             throw new InvalidOperationException("Expected at least one message in the group, but got none");
+
+        await DrainMsgGroupQueueAsync(i.msg.grouped_id).ConfigureAwait(false);
+    }
+    
+    private async Task DrainMsgGroupQueueAsync(long gid)
+    {
+        if (msgGroup.IsEmpty || processedGroupIds.Contains(gid))
+            return;
         
-        var groupedUpdates = msgGroup.ToList();
+        List<(Message msg, int pts)> groupedUpdates = [];
+        while (msgGroup.TryPeek(out var i)
+               && i.msg.grouped_id == gid
+               && msgGroup.TryDequeue(out _))
+            groupedUpdates.Add(i);
         var (msg, pts) = groupedUpdates[^1];
-        var gid = msg.grouped_id;
         lock (processedGroupIds)
             if (!processedGroupIds.Add(gid))
             {
                 Log.Warn($"⚠️ Message group {gid} was already processed before (new group size is {groupedUpdates.Count})");
-                msgGroup.Clear();
                 return;
             }
 
@@ -249,7 +271,6 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
         var groupLink = await Client.Channels_ExportMessageLink(channel, msg.id, true).ConfigureAwait(false);
         Log.Info($"Created new message group {group.Id} of expected size {group.Expected}");
         Push(new(TgEventType.Post, group, pts, groupLink.link));
-        msgGroup.Clear();
     }
 
     private Task OnMiscUpdate(IObject arg)
