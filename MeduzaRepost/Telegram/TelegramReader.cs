@@ -259,6 +259,9 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
                && i.msg.grouped_id == gid
                && msgGroup.TryDequeue(out _))
             groupedUpdates.Add(i);
+        if (groupedUpdates.Count is 0)
+            return;
+        
         var (msg, pts) = groupedUpdates[^1];
         lock (processedGroupIds)
             if (!processedGroupIds.Add(gid))
