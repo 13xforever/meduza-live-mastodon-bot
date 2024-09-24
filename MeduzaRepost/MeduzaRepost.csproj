@@ -9,7 +9,7 @@
   </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Mastonet" Version="3.1.1" />
+      <PackageReference Include="Mastonet" Version="3.1.2" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
         <PrivateAssets>all</PrivateAssets>
@@ -20,9 +20,9 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
       <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
       <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="3.0.1" />
-      <PackageReference Include="NLog" Version="5.3.3" />
-      <PackageReference Include="NLog.Extensions.Logging" Version="5.3.12" />
-      <PackageReference Include="WTelegramClient" Version="4.1.9" />
+      <PackageReference Include="NLog" Version="5.3.4" />
+      <PackageReference Include="NLog.Extensions.Logging" Version="5.3.14" />
+      <PackageReference Include="WTelegramClient" Version="4.1.10" />
     </ItemGroup>
 
   <ItemGroup>
