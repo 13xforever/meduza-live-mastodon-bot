@@ -24,7 +24,7 @@ public static class Config
     internal static string ConfigFolderName => config.GetValue(nameof(ConfigFolderName), "meduza-bot")!;
     internal static int MaxDescriptionLength => config.GetValue(nameof(MaxDescriptionLength), 1500);
     internal static TimeSpan PublicLimiterTimeSpan => config.GetValue(nameof(PublicLimiterTimeSpan), TimeSpan.FromHours(1));
-    internal static TimeSpan WatchdogThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromHours(8));
+    internal static TimeSpan WatchdogThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromHours(6));
     internal static TimeSpan UpdateFetchThreshold => config.GetValue(nameof(WatchdogThreshold), TimeSpan.FromMinutes(5));
     internal static int PublicLimiterItemCount => config.GetValue(nameof(PublicLimiterItemCount), 3);
     internal static bool WatchdogEnabled => config.GetValue(nameof(WatchdogEnabled), true);
