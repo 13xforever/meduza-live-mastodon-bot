@@ -5,7 +5,7 @@ public class Watchdog: IObserver<TgEvent>, IDisposable
     private readonly Action onTimeout;
     private Task trigger;
     private CancellationTokenSource cts = new();
-    private readonly object syncObj = new();
+    private readonly Lock syncObj = new();
 
     public Watchdog(Action onTimeout)
     {
@@ -18,13 +18,14 @@ public class Watchdog: IObserver<TgEvent>, IDisposable
         }, token);
     }
 
-    public void Reset()
+    private void Reset()
     {
-        lock (syncObj)
+        lock(syncObj)
         {
             cts.Cancel(false);
             if (!cts.TryReset())
             {
+                Config.Log.Debug("Failed to reset CTS, recreating…");
                 cts.Dispose();
                 cts = new();
             }
@@ -49,6 +50,7 @@ public class Watchdog: IObserver<TgEvent>, IDisposable
     public void OnError(Exception error) {}
     public void OnNext(TgEvent value)
     {
+        Config.Log.Debug($"Watchdog.OnNext got {value.Type}");
         if (value.Type is TgEventType.Post or TgEventType.Edit or TgEventType.Delete or TgEventType.Pin)
         {
             Reset();

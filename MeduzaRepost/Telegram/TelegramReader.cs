@@ -17,7 +17,8 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
     private readonly ConcurrentDictionary<IObserver<TgEvent>, Unsubscriber> subscribers = new();
     private readonly BotDb db = new();
     private readonly ConcurrentQueue<(Message msg, int pts)> msgGroup = new();
-    private readonly HashSet<long> processedGroupIds = new();
+    private readonly Lock processingLock = new();
+    private readonly HashSet<long> processedGroupIds = [];
 
     private Channel channel = null!;
     internal readonly Client Client = new(Config.Get);
@@ -263,7 +264,7 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             return;
         
         var (msg, pts) = groupedUpdates[^1];
-        lock (processedGroupIds)
+        lock (processingLock)
             if (!processedGroupIds.Add(gid))
             {
                 Log.Warn($"⚠️ Message group {gid} was already processed before (new group size is {groupedUpdates.Count})");

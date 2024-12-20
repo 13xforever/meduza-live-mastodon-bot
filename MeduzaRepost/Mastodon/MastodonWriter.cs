@@ -30,7 +30,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace
     );
 
-    private static readonly TimeLimitedQueue PostLimitQueue = new();
+    private static readonly TimeLimitedQueue PostLimitQueue = [];
     
 #if DEBUG
     private const Visibility NormalVisibility = Visibility.Private;
@@ -41,7 +41,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
 #endif
     
     private static readonly ILogger Log = Config.Log.WithPrefix("mastodon");
-    private static readonly char[] SentenceEndPunctuation = { '.', '!', '?' };
+    private static readonly char[] SentenceEndPunctuation = ['.', '!', '?'];
 
     private readonly CustomMastodonClient client = new(Config.Get("instance")!, Config.Get("access_token")!);
     private readonly BotDb db = new();

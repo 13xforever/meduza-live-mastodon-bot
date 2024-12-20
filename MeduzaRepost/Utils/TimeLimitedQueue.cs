@@ -4,6 +4,7 @@ namespace MeduzaRepost;
 
 public class TimeLimitedQueue: IList<DateTime>
 {
+    private readonly Lock queueLock = new();
     private readonly Queue<DateTime> queue = new();
 
     private void CleanQueue()
@@ -15,7 +16,7 @@ public class TimeLimitedQueue: IList<DateTime>
 
     public IEnumerator<DateTime> GetEnumerator()
     {
-        lock (queue)
+        lock (queueLock)
         {
             CleanQueue();
             return queue.GetEnumerator();
@@ -32,7 +33,7 @@ public class TimeLimitedQueue: IList<DateTime>
 
     public bool TryAdd(DateTime item)
     {
-        lock (queue)
+        lock (queueLock)
         {
             CleanQueue();
             if (queue.Count < Config.PublicLimiterItemCount)
@@ -47,7 +48,7 @@ public class TimeLimitedQueue: IList<DateTime>
 
     public void Clear()
     {
-        lock (queue)
+        lock (queueLock)
             queue.Clear();
     }
 
@@ -70,7 +71,7 @@ public class TimeLimitedQueue: IList<DateTime>
     {
         get
         {
-            lock (queue)
+            lock (queueLock)
                 return queue.Count;
         }
     }

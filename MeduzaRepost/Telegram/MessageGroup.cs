@@ -12,7 +12,7 @@ public sealed class MessageGroup
     {
         Id = 0;
         Expected = 1;
-        MessageList = new(1) { firstMessage };
+        MessageList = [firstMessage];
     }
     
     public MessageGroup(List<Message> messages)
