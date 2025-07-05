@@ -79,7 +79,9 @@ public static class Config
         {
             FileName = CurrentLogPath,
             ArchiveEvery = FileArchivePeriod.Day,
+            ArchiveFileName = "bot.log",
             ArchiveSuffixFormat = ".{1:yyyyMMdd}.{0:00}",
+            MaxArchiveDays = 7,
             KeepFileOpen = true,
             AutoFlush = false,
             OpenFileFlushTimeout = 1,
