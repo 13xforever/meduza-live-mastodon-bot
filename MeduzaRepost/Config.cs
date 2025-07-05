@@ -15,7 +15,7 @@ namespace MeduzaRepost;
 
 public static class Config
 {
-    private const string Version = "1.0.8";
+    private const string Version = "1.0.9";
     
     private static readonly IConfigurationRoot config;
     private static readonly string secretsPath;
@@ -79,9 +79,8 @@ public static class Config
         {
             FileName = CurrentLogPath,
             ArchiveEvery = FileArchivePeriod.Day,
-            ArchiveNumbering = ArchiveNumberingMode.DateAndSequence,
+            ArchiveSuffixFormat = ".{1:yyyyMMdd}.{0:00}",
             KeepFileOpen = true,
-            ConcurrentWrites = false,
             AutoFlush = false,
             OpenFileFlushTimeout = 1,
             Layout = "${longdate} ${sequenceid:padding=6} ${level:uppercase=true:padding=-5}" +
@@ -113,7 +112,7 @@ public static class Config
 #endif
         loggingConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, asyncFileTarget);
 
-        var ignoreFilter1 = new ConditionBasedFilter { Condition = "contains('${message}','TaskCanceledException')", Action = FilterResult.Ignore, };
+        var ignoreFilter1 = new ConditionBasedFilter { Condition = "contains('${message}','TaskCanceledException')"!, Action = FilterResult.Ignore, };
         foreach (var rule in loggingConfig.LoggingRules)
         {
             rule.Filters.Add(ignoreFilter1);

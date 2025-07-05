@@ -215,7 +215,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 catch (Exception e)
                 {
                     Log.Error(e, $"Failed to post new status for {evt.Link}");
-                    Log.Debug(client.LastErrorResponseContent);
+                    if (client.LastErrorResponseContent is {Length: >0} content)
+                        Log.Debug(content);
                     throw;
                 }
                 break;

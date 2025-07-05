@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using MeduzaRepost.Database;
 using NLog;
-using NLog.Fluent;
 using TL;
 using WTelegram;
 
