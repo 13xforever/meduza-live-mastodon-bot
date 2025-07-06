@@ -78,6 +78,7 @@ public static class Config
         var fileTarget = new FileTarget("logfile")
         {
             FileName = CurrentLogPath,
+            ArchiveFileName = CurrentLogPath,
             ArchiveEvery = FileArchivePeriod.Day,
             ArchiveSuffixFormat = ".{1:yyyyMMdd}.{0:0}",
             MaxArchiveDays = 7,
