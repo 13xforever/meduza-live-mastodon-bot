@@ -366,7 +366,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var paragraphs = text
             .Split("\n")
             .Select(l => l.Trim())
-            .Where(l => !string.IsNullOrEmpty(l))
+            .Where(l => l is {Length: >0} and not "@meduzalive")
             .ToList();
         paragraphs = Reduce(paragraphs, link);
         
