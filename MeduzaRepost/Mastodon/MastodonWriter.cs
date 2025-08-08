@@ -373,7 +373,8 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         if (paragraphs.Count > 1)
         {
             var title = paragraphs[0];
-            var body = string.Join("\n\n", paragraphs.Skip(1));
+            var body = string.Join("\n\n", paragraphs.Skip(1))
+                .Replace("\n\n✹", "\n✹");
             return (title, body);
         }
         
