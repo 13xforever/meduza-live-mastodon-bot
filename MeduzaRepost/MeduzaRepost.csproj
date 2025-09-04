@@ -20,9 +20,9 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.8" />
       <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="9.0.8" />
       <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="3.0.1" />
-      <PackageReference Include="NLog" Version="6.0.2" />
-      <PackageReference Include="NLog.Extensions.Logging" Version="6.0.2" />
-      <PackageReference Include="WTelegramClient" Version="4.3.7" />
+      <PackageReference Include="NLog" Version="6.0.3" />
+      <PackageReference Include="NLog.Extensions.Logging" Version="6.0.3" />
+      <PackageReference Include="WTelegramClient" Version="4.3.10" />
     </ItemGroup>
 
   <ItemGroup>
