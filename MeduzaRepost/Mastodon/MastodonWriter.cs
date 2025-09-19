@@ -375,7 +375,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             {
                 var choices = poll.answers.Select(a => a.text.text).ToArray();
                 foreach (var choice in choices)
-                    text += $"\n○ {choice}";
+                    text += $"\n〇 {choice}";
             }
         }
         var paragraphs = text
