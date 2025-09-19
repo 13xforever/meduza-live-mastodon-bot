@@ -146,33 +146,40 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     }
                     var attachments = await CollectAttachmentsAsync(evt.Group).ConfigureAwait(false);
                     Log.Debug($"Collected {attachments.Count} attachment{(attachments.Count is 1 ? "" : "s")} of types: {string.Join(", ", attachments.Select(a => a.Type))}");
-                    var (title, body) = FormatTitleAndBody(msg, evt.Link);
+                    var formatPollAsText = false;
                     PollParameters? poll = null;
                     if (msg.media is MessageMediaPoll { poll: { } tgPoll })
                         try
                         {
-                            poll = new PollParameters
+                            var choices = tgPoll.answers.Select(a => a.text.text.Trim(maxPollChoiceLength)).ToArray();
+                            if (choices.Length <= maxPollChoiceCount)
                             {
-                                Multiple = tgPoll.flags.HasFlag(Poll.Flags.multiple_choice),
-                                Options = tgPoll.answers.Select(a => a.text.text.Trim(50)).ToArray(),
-                                ExpiresIn = minPollTime
-                            };
-                            if (tgPoll.flags.HasFlag(Poll.Flags.closed))
-                                poll.ExpiresIn = TimeSpan.FromHours(1);
-                            else if (tgPoll.flags.HasFlag(Poll.Flags.has_close_date))
-                                poll.ExpiresIn = tgPoll.close_date - DateTime.UtcNow;
-                            else if (tgPoll.flags.HasFlag(Poll.Flags.has_close_period))
-                                poll.ExpiresIn = TimeSpan.FromSeconds(tgPoll.close_period);
-                            poll.ExpiresIn = TimeSpan.FromSeconds(
-                                Math.Max(
-                                    Math.Min(poll.ExpiresIn.TotalSeconds, maxPollTime.TotalSeconds),
-                                    minPollTime.TotalSeconds
-                                ));
+                                poll = new()
+                                {
+                                    Multiple = tgPoll.flags.HasFlag(Poll.Flags.multiple_choice),
+                                    Options = choices,
+                                    ExpiresIn = minPollTime
+                                };
+                                if (tgPoll.flags.HasFlag(Poll.Flags.closed))
+                                    poll.ExpiresIn = TimeSpan.FromMinutes(10);
+                                else if (tgPoll.flags.HasFlag(Poll.Flags.has_close_date))
+                                    poll.ExpiresIn = tgPoll.close_date - DateTime.UtcNow;
+                                else if (tgPoll.flags.HasFlag(Poll.Flags.has_close_period))
+                                    poll.ExpiresIn = TimeSpan.FromSeconds(tgPoll.close_period);
+                                poll.ExpiresIn = TimeSpan.FromSeconds(
+                                    Math.Max(
+                                        Math.Min(poll.ExpiresIn.TotalSeconds, maxPollTime.TotalSeconds),
+                                        minPollTime.TotalSeconds
+                                    ));
+                            }
+                            else
+                                formatPollAsText = true;
                         }
                         catch (Exception e)
                         {
                             Log.Error(e, "Failed to collect poll data");
                         }
+                    var (title, body) = FormatTitleAndBody(msg, formatPollAsText, evt.Link);
                     var visibility = GetVisibility(title, body, poll);
 #if !DEBUG
                     var tries = 0;
@@ -238,7 +245,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         if (db.MessageMaps.FirstOrDefault(m => m.TelegramId == message.id) is { MastodonId.Length: > 0 } map)
                         {
                             var status = await client.GetStatus(map.MastodonId).ConfigureAwait(false);
-                            var (title, body) = FormatTitleAndBody(message, evt.Link);
+                            var (title, body) = FormatTitleAndBody(message, true, evt.Link);
                             if (title == status.SpoilerText && body == status.Text)
                             {
                                 Log.Info($"Status edit did not change visible content, plz implement edit indicator ({evt.Link} → {status.Url})");
@@ -346,7 +353,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         return NormalVisibility;
     }
 
-    private (string? title, string body) FormatTitleAndBody(Message message, string? link)
+    private (string? title, string body) FormatTitleAndBody(Message message, bool formatPollAsText, string? link)
     {
         link ??= $"https://t.me/meduzalive/{message.id}";
         var text = message.message;
@@ -362,7 +369,15 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         if (message.media is MessageMediaWebPage { webpage: WebPage page })
             text += $"\n\n{page.url}";
         else if (message.media is MessageMediaPoll { poll: { } poll })
+        {
             text = poll.question.text;
+            if (formatPollAsText)
+            {
+                var choices = poll.answers.Select(a => a.text.text).ToArray();
+                foreach (var choice in choices)
+                    text += $"\n○ {choice}";
+            }
+        }
         var paragraphs = text
             .Split("\n")
             .Select(l => l.Trim())
