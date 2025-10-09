@@ -43,6 +43,14 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private static readonly ILogger Log = Config.Log.WithPrefix("mastodon");
     private static readonly char[] SentenceEndPunctuation = ['.', '!', '?'];
 
+    private static readonly HashSet<string> LineFilter =
+    [
+        "@meduzalive",
+        "@meduza_news",
+        "Открыть с VPN | без VPN",
+        "Открыть сайт | зеркало | телеграм ↓",
+    ];
+
     private readonly CustomMastodonClient client = new(Config.Get("instance")!, Config.Get("access_token")!);
     private readonly BotDb db = new();
     private readonly ConcurrentQueue<TgEvent> events = new();
@@ -381,7 +389,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         var paragraphs = text
             .Split("\n")
             .Select(l => l.Trim())
-            .Where(l => l is {Length: >0} and not "@meduzalive")
+            .Where(l => l is {Length: >0} && !LineFilter.Contains(l))
             .ToList();
         paragraphs = Reduce(paragraphs, link);
         
