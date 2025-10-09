@@ -1,5 +1,4 @@
-﻿using System.Dynamic;
-using MeduzaRepost;
+﻿using MeduzaRepost;
 using Microsoft.CSharp.RuntimeBinder;
 
 namespace Tests;
@@ -16,11 +15,11 @@ public class Misc
         Assert.That(dyn.pts, Is.EqualTo(42));
         Assert.Throws<RuntimeBinderException>(() => { var result = dyn.prop ?? 0; });
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(test1.GetPts(), Is.EqualTo(42));
             Assert.That(test2.GetPts(), Is.EqualTo(0));
-        });
+        }
     }
 
     private class TestClassWithPts { public int pts; }

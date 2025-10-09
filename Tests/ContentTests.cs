@@ -20,7 +20,7 @@ public class ContentTests
 
             Позже Зеленский назвал эту победу «абсолютной» — как Франклин Делано Рузвельт в своей речи в декабре 1941 года.
             """;
-        var m = MastodonWriter.Junk.Match(sample);
+        var m = MastodonWriter.Junk().Match(sample);
         Assert.That(m.Success, Is.True);
 
         var g = m.Groups["junk"];
@@ -38,8 +38,11 @@ public class ContentTests
         var g = m.Groups[0];
         var start = s[..(g.Index)];
         var end = s[(g.Index + g.Length)..];
-        Assert.That(start, Is.EqualTo("asdf q"));
-        Assert.That(end, Is.EqualTo("r weriotu"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(start, Is.EqualTo("asdf q"));
+            Assert.That(end, Is.EqualTo("r weriotu"));
+        }
 
         m = Regex.Match(s, "asd");
         g = m.Groups[0];
@@ -52,15 +55,21 @@ public class ContentTests
         g = m.Groups[0];
         start = s[..(g.Index)];
         end = s[(g.Index + g.Length)..];
-        Assert.That(start, Is.EqualTo("asdf qwer weri"));
-        Assert.That(end, Is.EqualTo(""));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(start, Is.EqualTo("asdf qwer weri"));
+            Assert.That(end, Is.EqualTo(""));
+        }
     }
 
     [TestCase("Завершается триста пятнадцатый день полномасштабной войны")]
     public void ImportantTest(string title)
     {
-        var matches = MastodonWriter.Important.Matches(title);
-        Assert.That(matches.Count, Is.GreaterThan(0));
-        Assert.That(MastodonWriter.Important.IsMatch(title));
+        var matches = MastodonWriter.Important().Matches(title);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(matches, Is.Not.Empty);
+            Assert.That(MastodonWriter.Important().IsMatch(title));
+        }
     }
 }

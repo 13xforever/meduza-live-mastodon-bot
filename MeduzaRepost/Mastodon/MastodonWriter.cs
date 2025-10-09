@@ -10,14 +10,15 @@ using Poll = TL.Poll;
 
 namespace MeduzaRepost;
 
-public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
+public sealed partial class MastodonWriter: IObserver<TgEvent>, IDisposable
 {
-    internal static readonly Regex Junk = new(
+    [GeneratedRegex(
         @"^(?<junk>(\s|«)*ДАННОЕ\s+СООБЩЕНИЕ\b.+\bВЫПОЛНЯЮЩИМ\s+ФУНКЦИИ\s+ИНОСТРАННОГО\s+АГЕНТА?(\.|\s)*)$",
-        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.ExplicitCapture
-    );
-    
-    internal static readonly Regex Important = new("""
+        RegexOptions.Multiline | RegexOptions.ExplicitCapture
+    )]
+    internal static partial Regex Junk();
+    [GeneratedRegex(
+        """
                 (?<important>(
                     (^❗)
                     |((начинается|подходит\s+к\s+концу|завершается).+день)
@@ -27,19 +28,20 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     |(ЛГБТ\+?|трансгендер)
                 ))
                 """,
-        RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace
-    );
+        RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.IgnorePatternWhitespace
+    )]
+    internal static partial Regex Important();
 
     private static readonly TimeLimitedQueue PostLimitQueue = [];
-    
+
 #if DEBUG
     private const Visibility NormalVisibility = Visibility.Private;
     private const Visibility ImportantVisibility = Visibility.Private;
-#else    
+#else
     private const Visibility NormalVisibility = Visibility.Unlisted;
     private const Visibility ImportantVisibility = Visibility.Public;
 #endif
-    
+
     private static readonly ILogger Log = Config.Log.WithPrefix("mastodon");
     private static readonly char[] SentenceEndPunctuation = ['.', '!', '?'];
 
@@ -63,7 +65,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private TimeSpan minPollTime, maxPollTime;
     private HashSet<string> mimeTypes = null!;
     //private bool SupportsMarkdown = false;
-    
+
     public async Task Run(TelegramReader telegramReader)
     {
         reader = telegramReader;
@@ -87,7 +89,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
         minPollTime = TimeSpan.FromSeconds(pollLimits.MinExpiration);
         maxPollTime = TimeSpan.FromSeconds(pollLimits.MaxExpiration);
         Log.Info($"Limits: description={maxDescriptionLength}, status length={maxLength}, attachments={maxAttachments}");
-        
+
         Log.Info("Reading mastodon pins…");
         var pinnedStatusList = await client.GetAccountStatuses(user.Id, pinned: true).ConfigureAwait(false);
         var pinIds = pinnedStatusList.Select(s => s.Id).ToList();
@@ -245,7 +247,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     Log.Debug($"Ignoring status update with pts {evt.pts}: current pts is {pstVal}");
                     return;
                 }
-                
+
                 foreach (var message in evt.Group.MessageList)
                 {
                     try
@@ -259,7 +261,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 Log.Info($"Status edit did not change visible content, plz implement edit indicator ({evt.Link} → {status.Url})");
                                 continue;
                             }
-#if !DEBUG                            
+#if !DEBUG
                             status = await client.EditStatus(
                                 statusId: map.MastodonId,
                                 spoilerText: title,
@@ -322,7 +324,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                         {
                             Log.Warn(e, $"Failed to unpin {status.Url}");
                         }
-                    
+
                 }
                 foreach (var id in newPins)
                 {
@@ -355,7 +357,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     private static Visibility GetVisibility(string? title, string body, PollParameters? poll)
     {
         if (title is { Length: > 0 }
-            && (Important.IsMatch(title) || poll is {ExpiresIn.TotalMinutes: >20})
+            && (Important().IsMatch(title) || poll is {ExpiresIn.TotalMinutes: >20})
             && PostLimitQueue.TryAdd(DateTime.UtcNow))
             return ImportantVisibility;
         return NormalVisibility;
@@ -365,7 +367,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
     {
         link ??= $"https://t.me/meduzalive/{message.id}";
         var text = message.message;
-        if (text is { Length: > 0 } && Junk.Match(text) is { Success: true } m)
+        if (text is { Length: > 0 } && Junk().Match(text) is { Success: true } m)
         {
             var g = m.Groups["junk"];
             text = text[..(g.Index)] + text[(g.Index + g.Length)..];
@@ -392,7 +394,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
             .Where(l => l is {Length: >0} && !LineFilter.Contains(l))
             .ToList();
         paragraphs = Reduce(paragraphs, link);
-        
+
         if (paragraphs.Count > 1)
         {
             var title = paragraphs[0];
@@ -400,7 +402,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 .Replace("\n\n✹", "\n✹");
             return (title, body);
         }
-        
+
         if (paragraphs.Count == 1)
         {
             var parts = paragraphs[0].Split('.', 2);
@@ -425,7 +427,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                     break;
                 }
         }
-        
+
         var max = maxLength - linkReservedLength - link.Length - 4;
         if (GetSumLength(paragraphs) < max)
         {
@@ -523,7 +525,7 @@ public sealed class MastodonWriter: IObserver<TgEvent>, IDisposable
                 memStream.Seek(0, SeekOrigin.Begin);
                 if (memStream.Length > maxImageSize)
                     return default;
-                
+
                 return (memStream, null, srcImg.id.ToString(), attachmentDescription);
             }
             catch (Exception e)
