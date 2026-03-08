@@ -26,7 +26,7 @@ public sealed partial class MastodonWriter: IObserver<TgEvent>, IDisposable
                     |((принят|подписа[лн]|одобр(ил|ен)|внес(ен|ли)).+закон|налог)
                     |(главн[ыо][ем]\s+([ко]\s+)?(фото(графи)?|событ|новост|.*\b(минут|момент)))
                     |(призыв|мобилизаци[ия]|повестк[ауе]|воинск\w+\s+уч[её]т)
-                    |(ЛГБТ\+?|трансгендер)
+                    |(ЛГБТ|трансгендер)
                 ))
                 """,
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.ExplicitCapture | RegexOptions.IgnorePatternWhitespace
