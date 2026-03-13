@@ -69,6 +69,9 @@ public static class Config
         "lang_pack" => null,
         "lang_code" => null,
         "init_params" => null,
+        // from secrets:
+        // app_id, api_hash - telegram
+        // instance, access_token - mastodon
         _ => config.GetValue<string?>(param) ?? InteractiveGet(param),
     };
 

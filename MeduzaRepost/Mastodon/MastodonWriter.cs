@@ -64,6 +64,7 @@ public sealed partial class MastodonWriter: IObserver<TgEvent>, IDisposable
         maxDescriptionLength, maxPollChoiceCount, maxPollChoiceLength,
         linkReservedLength;
     private TimeSpan minPollTime, maxPollTime;
+    private static readonly TimeSpan DefaultPollTime = TimeSpan.FromDays(1);
     private HashSet<string> mimeTypes = null!;
     //private bool SupportsMarkdown = false;
 
@@ -169,7 +170,7 @@ public sealed partial class MastodonWriter: IObserver<TgEvent>, IDisposable
                                 {
                                     Multiple = tgPoll.flags.HasFlag(Poll.Flags.multiple_choice),
                                     Options = choices,
-                                    ExpiresIn = minPollTime
+                                    ExpiresIn = DefaultPollTime
                                 };
                                 if (tgPoll.flags.HasFlag(Poll.Flags.closed))
                                     poll.ExpiresIn = TimeSpan.FromMinutes(10);
