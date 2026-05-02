@@ -60,7 +60,11 @@ public sealed class TelegramReader: IObservable<TgEvent>, IDisposable
             && savedPts > 0)
         {
             // check missed updates
+#if DEBUG            
+            var diffPts = Math.Max(0, savedPts);
+#else            
             var diffPts = Math.Max(0, savedPts - 200); // about 2 days worth of overlap for missing messages
+#endif
             Log.Info($"Checking missed channel updates since pts {diffPts}…");
             long lastGroupId = 0;
             while (await Client.Updates_GetChannelDifference(channel, null, diffPts).ConfigureAwait(false) is {} baseDiff)

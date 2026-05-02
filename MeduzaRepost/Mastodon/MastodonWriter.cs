@@ -163,7 +163,7 @@ public sealed partial class MastodonWriter: IObserver<TgEvent>, IDisposable
                     if (msg.media is MessageMediaPoll { poll: { } tgPoll })
                         try
                         {
-                            var choices = tgPoll.answers.Select(a => a.text.text.Trim(maxPollChoiceLength)).ToArray();
+                            var choices = tgPoll.answers.Select(a => a.Text.text.Trim(maxPollChoiceLength)).ToArray();
                             if (choices.Length <= maxPollChoiceCount)
                             {
                                 poll = new()
@@ -385,7 +385,7 @@ public sealed partial class MastodonWriter: IObserver<TgEvent>, IDisposable
             text = poll.question.text;
             if (formatPollAsText)
             {
-                var choices = poll.answers.Select(a => a.text.text).ToArray();
+                var choices = poll.answers.Select(a => a.Text.text).ToArray();
                 foreach (var choice in choices)
                     text += $"\n〇 {choice}";
             }
